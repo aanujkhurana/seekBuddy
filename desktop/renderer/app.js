@@ -224,6 +224,14 @@ function attachEventListeners() {
     $("install-browsers-btn").textContent = "Install Browsers";
     $("install-browsers-btn").disabled = false;
   });
+  $("export-history-btn").addEventListener("click", async () => {
+    const res = await api.exportJobs();
+    if (res.success) {
+      appendLog(`[OK] Exported to ${res.path}\n`);
+    } else if (res.message !== "Export cancelled.") {
+      appendLog(`[WARN] ${res.message}\n`);
+    }
+  });
   $("clear-history-btn").addEventListener("click", clearHistory);
   $("browse-resume").addEventListener("click", browseResume);
   $("browse-cover-letter").addEventListener("click", browseCoverLetter);

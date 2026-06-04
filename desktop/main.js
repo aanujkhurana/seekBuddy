@@ -295,6 +295,57 @@ ipcMain.handle("install-browsers", async () => {
   });
 });
 
+// ---- Export ----
+
+ipcMain.handle("export-jobs", async () => {
+  const srcPath = path.join(getUserDataPath(), "handled-applications.json");
+  if (!fs.existsSync(srcPath)) {
+    return { success: false, message: "No applied jobs to export." };
+  }
+
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Export Applied Jobs",
+    defaultPath: `applied-jobs-${new Date().toISOString().slice(0, 10)}.csv`,
+    filters: [
+      { name: "CSV", extensions: ["csv"] },
+      { name: "JSON", extensions: ["json"] }
+    ]
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { success: false, message: "Export cancelled." };
+  }
+
+  const jobs = JSON.parse(fs.readFileSync(srcPath, "utf8"));
+  const ext = path.extname(result.filePath).toLowerCase();
+
+  if (ext === ".json") {
+    fs.writeFileSync(result.filePath, JSON.stringify(jobs, null, 2));
+  } else {
+    const headers = ["Title", "Company", "Date", "Status", "URL", "CoverLetter"];
+    const rows = jobs.map((j) => [
+      csvEscape(j.title || ""),
+      csvEscape(j.company || ""),
+      j.handledAt ? new Date(j.handledAt).toISOString().slice(0, 10) : "",
+      j.status || "prepared",
+      csvEscape(j.url || ""),
+      csvEscape(j.coverLetterPath || "")
+    ].join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    fs.writeFileSync(result.filePath, csv);
+  }
+
+  return { success: true, path: result.filePath };
+});
+
+function csvEscape(val) {
+  const s = String(val);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
 // ---- Misc ----
 
 ipcMain.handle("get-app-version", async () => {
