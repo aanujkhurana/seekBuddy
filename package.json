@@ -13,7 +13,9 @@
     "desktop": "electron .",
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "backend": "node backend/src/index.js",
+    "backend:dev": "node --watch backend/src/index.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
