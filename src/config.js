@@ -4,7 +4,10 @@ import process from "node:process";
 import "dotenv/config";
 
 export function loadConfig() {
-  const configPath = getArgValue("--config") || "config.json";
+  const userDataDir = process.env.USER_DATA_DIR;
+  const configPath = userDataDir
+    ? path.join(userDataDir, "config.json")
+    : (getArgValue("--config") || "config.json");
   if (!fs.existsSync(configPath)) {
     throw new Error(
       `Missing ${configPath}. Create config.json with your SEEK search, resume, and applicant details first.`

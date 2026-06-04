@@ -2,7 +2,8 @@ import path from "node:path";
 import { ensureDir, readJsonFile, writeJsonFile } from "./config.js";
 import { logStep, logSuccess } from "./logger.js";
 
-const handledPath = path.join("data", "handled-applications.json");
+const dataDir = process.env.USER_DATA_DIR || "data";
+const handledPath = path.join(dataDir, "handled-applications.json");
 const existing = readJsonFile(handledPath, []);
 
 logStep("Clearing handled application history", {
@@ -10,7 +11,7 @@ logStep("Clearing handled application history", {
   existingCount: Array.isArray(existing) ? existing.length : 0
 });
 
-ensureDir("data");
+ensureDir(dataDir);
 writeJsonFile(handledPath, []);
 
 logSuccess("Handled application history cleared", {

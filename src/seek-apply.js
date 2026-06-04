@@ -20,11 +20,12 @@ process.on("SIGTERM", () => {
 
 const config = loadConfig();
 const dryRun = hasFlag("--dry-run");
-const handledPath = path.join("data", "handled-applications.json");
+const dataDir = process.env.USER_DATA_DIR || "data";
+const handledPath = path.join(dataDir, "handled-applications.json");
 const handledApplications = readJsonFile(handledPath, []);
 const handledUrls = new Set(handledApplications.map((item) => item.url));
 
-ensureDir("data");
+ensureDir(dataDir);
 ensureDir("out/cover-letters");
 
 logStep("Launching browser", {
