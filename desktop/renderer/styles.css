@@ -1,0 +1,401 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #f1f5f9;
+  color: #1e293b;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-y: scroll;
+}
+
+#app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+#version {
+  font-size: 12px;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  padding: 16px 20px;
+  margin-bottom: 12px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.card-header h2 {
+  flex: 1;
+}
+
+.toggle-icon {
+  font-size: 12px;
+  color: #94a3b8;
+  transition: transform 0.2s;
+}
+
+.toggle-icon.collapsed {
+  transform: rotate(-90deg);
+}
+
+.card h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #0f172a;
+}
+
+fieldset {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  padding: 0 6px;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.form-row label {
+  min-width: 100px;
+  font-size: 13px;
+  color: #334155;
+  flex-shrink: 0;
+}
+
+.form-row input[type="text"],
+.form-row input[type="email"],
+.form-row input[type="password"],
+.form-row input[type="number"],
+.form-row select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #f8fafc;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.form-row input:focus,
+.form-row select:focus {
+  border-color: #2563eb;
+  background: #fff;
+}
+
+.file-picker {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+}
+
+.file-picker input {
+  flex: 1;
+  cursor: default;
+  background: #f1f5f9;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.feedback {
+  font-size: 13px;
+  color: #16a34a;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-secondary {
+  background: #e2e8f0;
+  color: #334155;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #cbd5e1;
+}
+
+.btn-success {
+  background: #16a34a;
+  color: #fff;
+}
+.btn-success:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: #fff;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.btn-outline {
+  background: #fff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+.btn-outline:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.btn-small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.badge-idle {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.badge-running {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.badge-stopped {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+#login-status-badge {
+  margin-left: 4px;
+}
+
+.auto-scroll-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #64748b;
+  cursor: pointer;
+}
+
+#log-output {
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 12px;
+  border-radius: 6px;
+  height: 280px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin-top: 8px;
+}
+
+#log-output .log-placeholder {
+  color: #64748b;
+  font-style: italic;
+}
+
+#history-count {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 2px solid #e2e8f0;
+  color: #64748b;
+  font-weight: 600;
+}
+
+tbody td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+tbody tr:hover {
+  background: #f8fafc;
+}
+
+.empty-state {
+  text-align: center;
+  color: #94a3b8;
+  padding: 24px 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #0f172a;
+    color: #e2e8f0;
+  }
+  .card {
+    background: #1e293b;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .card h2 {
+    color: #f1f5f9;
+  }
+  fieldset {
+    border-color: #334155;
+  }
+  legend {
+    color: #94a3b8;
+  }
+  .form-row label {
+    color: #cbd5e1;
+  }
+  .form-row input,
+  .form-row select {
+    background: #0f172a;
+    border-color: #334155;
+    color: #e2e8f0;
+  }
+  .form-row input:focus,
+  .form-row select:focus {
+    border-color: #3b82f6;
+    background: #1e293b;
+  }
+  thead th {
+    color: #94a3b8;
+    border-bottom-color: #334155;
+  }
+  tbody td {
+    color: #cbd5e1;
+    border-bottom-color: #1e293b;
+  }
+  tbody tr:hover {
+    background: #0f172a;
+  }
+  .btn-secondary {
+    background: #334155;
+    color: #e2e8f0;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: #475569;
+  }
+  .btn-outline {
+    background: #1e293b;
+    color: #94a3b8;
+    border-color: #334155;
+  }
+  .btn-outline:hover:not(:disabled) {
+    background: #0f172a;
+  }
+  .badge-idle {
+    background: #334155;
+    color: #94a3b8;
+  }
+  #log-output {
+    background: #000;
+    color: #cbd5e1;
+  }
+  header h1 {
+    color: #f1f5f9;
+  }
+  #version {
+    background: #334155;
+    color: #94a3b8;
+  }
+  .file-picker input {
+    background: #0f172a;
+  }
+}

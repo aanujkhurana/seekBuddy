@@ -1,0 +1,49 @@
+{
+  "name": "seek-job-application-automation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "desktop/main.js",
+  "scripts": {
+    "install:browsers": "playwright install chromium",
+    "apply": "node src/seek-apply.js",
+    "clear:applied": "node src/clear-applied.js",
+    "clear-applied": "node src/clear-applied.js",
+    "login": "node src/seek-login.js",
+    "desktop": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "playwright": "^1.52.0",
+    "electron": "^33.0.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.anuj.seekapplyassistant",
+    "productName": "Seek Apply Assistant",
+    "files": [
+      "desktop/**/*",
+      "src/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "user-data",
+        "to": "user-data",
+        "filter": ["**/*"]
+      }
+    ],
+    "mac": {
+      "target": ["dmg"]
+    },
+    "win": {
+      "target": ["nsis"]
+    }
+  }
+}
