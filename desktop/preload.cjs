@@ -20,6 +20,13 @@ contextBridge.exposeInMainWorld("seekApp", {
   installBrowsers: () => ipcRenderer.invoke("install-browsers"),
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
 
+  saveAIConfig: (cfg) => ipcRenderer.invoke("save-ai-config", cfg),
+  loadAIConfig: () => ipcRenderer.invoke("load-ai-config"),
+  saveApiKey: (payload) => ipcRenderer.invoke("save-api-key", payload),
+  loadApiKey: () => ipcRenderer.invoke("load-api-key"),
+  deleteApiKey: () => ipcRenderer.invoke("delete-api-key"),
+  testAIConnection: () => ipcRenderer.invoke("test-ai-connection"),
+
   onLog: (cb) => { ipcRenderer.on("automation-log", (_e, d) => cb(d)); },
   onStopped: (cb) => { ipcRenderer.on("automation-stopped", () => cb()); },
   onAutomationStopped: (cb) => { ipcRenderer.on("automation-stopped", () => cb()); },

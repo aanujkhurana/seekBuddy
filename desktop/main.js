@@ -1,9 +1,10 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, safeStorage } from "electron";
 import path from "path";
 import os from "os";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import fs from "fs";
+import crypto from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,7 +21,14 @@ const DEFAULTS = {
   maxApplications: 5,
   reviewBeforeApply: true,
   slowMoMs: 80,
-  browserProfileDir: ".playwright-seek-profile"
+  browserProfileDir: ".playwright-seek-profile",
+  ai: {
+    mode: "hosted",
+    hostedModel: "budget",
+    byokProvider: "openrouter",
+    byokModel: "deepseek/deepseek-chat",
+    apiKey: ""
+  }
 };
 
 let mainWindow;
@@ -345,6 +353,132 @@ function csvEscape(val) {
   }
   return s;
 }
+
+// ---- AI ----
+
+function getKeyStorePath() {
+  return path.join(getUserDataPath(), ".api-key.enc");
+}
+
+function encryptKey(plaintext) {
+  if (safeStorage.isEncryptionAvailable()) {
+    return safeStorage.encryptString(plaintext).toString("base64");
+  }
+  const fallback = crypto.createCipheriv(
+    "aes-256-gcm",
+    crypto.scryptSync("seek-buddy-fallback-key-v1", "salt", 32),
+    Buffer.alloc(16, 0)
+  );
+  const encrypted = Buffer.concat([fallback.update(plaintext, "utf8"), fallback.final()]);
+  const tag = fallback.getAuthTag();
+  return Buffer.concat([tag, encrypted]).toString("base64");
+}
+
+function decryptKey(encoded) {
+  const buf = Buffer.from(encoded, "base64");
+  if (safeStorage.isEncryptionAvailable()) {
+    try {
+      return safeStorage.decryptString(buf);
+    } catch {
+    }
+  }
+  try {
+    const tag = buf.subarray(0, 16);
+    const data = buf.subarray(16);
+    const decipher = crypto.createDecipheriv(
+      "aes-256-gcm",
+      crypto.scryptSync("seek-buddy-fallback-key-v1", "salt", 32),
+      Buffer.alloc(16, 0)
+    );
+    decipher.setAuthTag(tag);
+    return decipher.update(data, "base64", "utf8") + decipher.final("utf8");
+  } catch {
+    return null;
+  }
+}
+
+ipcMain.handle("save-ai-config", async (_, aiConfig) => {
+  const filePath = path.join(getUserDataPath(), "config.json");
+  let config = {};
+  if (fs.existsSync(filePath)) {
+    config = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  }
+  config.ai = { ...config.ai, ...aiConfig };
+  delete config.ai.apiKey;
+  fs.writeFileSync(filePath, JSON.stringify(config, null, 2));
+  return { success: true };
+});
+
+ipcMain.handle("load-ai-config", async () => {
+  const filePath = path.join(getUserDataPath(), "config.json");
+  if (!fs.existsSync(filePath)) {
+    return { mode: "hosted", hostedModel: "budget", byokProvider: "openrouter", byokModel: "deepseek/deepseek-chat" };
+  }
+  const config = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  const ai = config.ai || {};
+  return {
+    mode: ai.mode || "hosted",
+    hostedModel: ai.hostedModel || "budget",
+    byokProvider: ai.byokProvider || "openrouter",
+    byokModel: ai.byokModel || "deepseek/deepseek-chat"
+  };
+});
+
+ipcMain.handle("save-api-key", async (_, { provider, key }) => {
+  const store = { provider, key };
+  const encrypted = encryptKey(JSON.stringify(store));
+  fs.writeFileSync(getKeyStorePath(), encrypted);
+  return { success: true };
+});
+
+ipcMain.handle("load-api-key", async () => {
+  const ksPath = getKeyStorePath();
+  if (!fs.existsSync(ksPath)) return { provider: "", key: "" };
+  const encrypted = fs.readFileSync(ksPath, "utf8");
+  const decrypted = decryptKey(encrypted);
+  if (!decrypted) return { provider: "", key: "" };
+  try {
+    return JSON.parse(decrypted);
+  } catch {
+    return { provider: "", key: "" };
+  }
+});
+
+ipcMain.handle("delete-api-key", async () => {
+  const ksPath = getKeyStorePath();
+  if (fs.existsSync(ksPath)) fs.unlinkSync(ksPath);
+  return { success: true };
+});
+
+ipcMain.handle("test-ai-connection", async () => {
+  const ksPath = getKeyStorePath();
+  const configPath = path.join(getUserDataPath(), "config.json");
+  if (!fs.existsSync(ksPath) || !fs.existsSync(configPath)) {
+    return { success: false, message: "AI not configured." };
+  }
+  const encrypted = fs.readFileSync(ksPath, "utf8");
+  const decrypted = decryptKey(encrypted);
+  if (!decrypted) return { success: false, message: "Could not decrypt API key." };
+  let store;
+  try { store = JSON.parse(decrypted); } catch { store = { provider: "", key: "" }; }
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const fullConfig = {
+    ai: {
+      ...config.ai,
+      apiKey: store.key
+    }
+  };
+  try {
+    const { createAIClient } = await import("../src/ai/ai-client.js");
+    const client = createAIClient(fullConfig);
+    if (typeof client.testConnection === "function") {
+      return await client.testConnection();
+    }
+    return { success: false, message: "This provider does not support connection testing." };
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+});
 
 // ---- Misc ----
 

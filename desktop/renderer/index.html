@@ -50,6 +50,52 @@
       <p id="coverLetterPath">No cover letter selected</p>
     </section>
 
+    <section class="card">
+      <h2>AI Settings</h2>
+
+      <label>AI Mode</label>
+      <select id="aiMode">
+        <option value="hosted">Use Built-in AI (limited daily usage)</option>
+        <option value="byok">Use My Own API Key</option>
+      </select>
+
+      <div id="hostedSettings">
+        <label>AI Quality</label>
+        <select id="hostedModel">
+          <option value="budget">Budget — cheapest, good for simple tasks</option>
+          <option value="balanced">Balanced — better answers, slightly more usage</option>
+          <option value="premium">Premium — best quality, uses more credits</option>
+        </select>
+        <p class="hint">Built-in AI is powered by budget models. Daily limits apply.</p>
+      </div>
+
+      <div id="byokSettings" style="display:none">
+        <label>Provider</label>
+        <select id="byokProvider">
+          <option value="openrouter">OpenRouter</option>
+          <option value="openai">OpenAI</option>
+          <option value="gemini">Gemini</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="minimax">MiniMax</option>
+        </select>
+
+        <label>Model</label>
+        <input id="byokModel" placeholder="deepseek/deepseek-chat" />
+
+        <label>API Key</label>
+        <div class="key-row">
+          <input id="apiKeyInput" type="password" placeholder="sk-..." />
+          <button id="toggleKeyVisibility" class="btn-sm">Show</button>
+        </div>
+
+        <div class="actions" style="margin-top:8px">
+          <button id="testConnection">Test Connection</button>
+          <button id="saveAISettings" class="primary">Save AI Settings</button>
+        </div>
+        <p id="aiStatus" class="hint"></p>
+      </div>
+    </section>
+
     <section class="actions">
       <button id="saveConfig">Save Config</button>
       <button id="start" class="primary">Start</button>

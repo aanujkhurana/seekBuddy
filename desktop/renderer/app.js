@@ -9,8 +9,21 @@ const resumePathText = document.getElementById("resumePath");
 const coverLetterPathText = document.getElementById("coverLetterPath");
 const logs = document.getElementById("logs");
 
+const aiModeSelect = document.getElementById("aiMode");
+const hostedSettings = document.getElementById("hostedSettings");
+const byokSettings = document.getElementById("byokSettings");
+const hostedModelSelect = document.getElementById("hostedModel");
+const byokProviderSelect = document.getElementById("byokProvider");
+const byokModelInput = document.getElementById("byokModel");
+const apiKeyInput = document.getElementById("apiKeyInput");
+const toggleKeyBtn = document.getElementById("toggleKeyVisibility");
+const testConnectionBtn = document.getElementById("testConnection");
+const saveAIBtn = document.getElementById("saveAISettings");
+const aiStatus = document.getElementById("aiStatus");
+
 let resumePath = "";
 let coverLetterPath = "";
+let keyVisible = false;
 
 function appendLog(message) {
   logs.textContent += `\n${message}`;
@@ -19,7 +32,6 @@ function appendLog(message) {
 
 async function loadConfig() {
   const config = await window.seekApp.loadConfig();
-
   if (!config) return;
 
   emailInput.value = config.email || "";
@@ -31,23 +43,56 @@ async function loadConfig() {
 
   resumePath = config.resumePath || "";
   coverLetterPath = config.coverLetterPath || "";
-
   resumePathText.textContent = resumePath || "No resume selected";
   coverLetterPathText.textContent = coverLetterPath || "No cover letter selected";
 }
 
-function getConfig() {
+async function loadAIConfig() {
+  const aiCfg = await window.seekApp.loadAIConfig();
+  aiModeSelect.value = aiCfg.mode || "hosted";
+  hostedModelSelect.value = aiCfg.hostedModel || "budget";
+  byokProviderSelect.value = aiCfg.byokProvider || "openrouter";
+  byokModelInput.value = aiCfg.byokModel || "deepseek/deepseek-chat";
+
+  const stored = await window.seekApp.loadApiKey();
+  if (stored && stored.key) {
+    apiKeyInput.value = stored.key;
+  }
+
+  toggleByokVisibility();
+}
+
+function toggleByokVisibility() {
+  const isByok = aiModeSelect.value === "byok";
+  hostedSettings.style.display = isByok ? "none" : "";
+  byokSettings.style.display = isByok ? "" : "none";
+}
+
+function getAIConfig() {
   return {
-    email: emailInput.value.trim(),
-    password: passwordInput.value,
-    keywords: keywordsInput.value.trim(),
-    location: locationInput.value.trim(),
-    maxApplications: Number(maxApplicationsInput.value || 10),
-    reviewBeforeApply: reviewBeforeApplyInput.checked,
-    resumePath,
-    coverLetterPath
+    mode: aiModeSelect.value,
+    hostedModel: hostedModelSelect.value,
+    byokProvider: byokProviderSelect.value,
+    byokModel: byokModelInput.value.trim()
   };
 }
+
+async function saveAISettings() {
+  const aiCfg = getAIConfig();
+  await window.seekApp.saveAIConfig(aiCfg);
+
+  const key = apiKeyInput.value.trim();
+  if (key && aiCfg.mode === "byok") {
+    await window.seekApp.saveApiKey({ provider: aiCfg.byokProvider, key });
+  } else if (aiCfg.mode === "hosted") {
+    await window.seekApp.deleteApiKey();
+  }
+
+  aiStatus.textContent = "AI settings saved.";
+  appendLog("AI settings saved.");
+}
+
+// ---- Event listeners ----
 
 document.getElementById("selectResume").addEventListener("click", async () => {
   const file = await window.seekApp.selectFile({
@@ -55,7 +100,6 @@ document.getElementById("selectResume").addEventListener("click", async () => {
       { name: "Documents", extensions: ["pdf", "doc", "docx"] }
     ]
   });
-
   if (file) {
     resumePath = file;
     resumePathText.textContent = file;
@@ -68,7 +112,6 @@ document.getElementById("selectCoverLetter").addEventListener("click", async () 
       { name: "Documents", extensions: ["pdf", "doc", "docx"] }
     ]
   });
-
   if (file) {
     coverLetterPath = file;
     coverLetterPathText.textContent = file;
@@ -82,25 +125,16 @@ document.getElementById("saveConfig").addEventListener("click", async () => {
 
 document.getElementById("start").addEventListener("click", async () => {
   await window.seekApp.saveConfig(getConfig());
-
   logs.textContent = "";
   appendLog("Starting automation...");
-
   const result = await window.seekApp.startAutomation();
-
-  if (!result.success) {
-    appendLog(result.message);
-  }
+  if (!result.success) appendLog(result.message);
 });
 
 document.getElementById("stop").addEventListener("click", async () => {
   const result = await window.seekApp.stopAutomation();
-
-  if (result.success) {
-    appendLog("Automation stopped.");
-  } else {
-    appendLog(result.message);
-  }
+  if (result.success) appendLog("Automation stopped.");
+  else appendLog(result.message);
 });
 
 document.getElementById("clearApplied").addEventListener("click", async () => {
@@ -108,12 +142,33 @@ document.getElementById("clearApplied").addEventListener("click", async () => {
   appendLog(result.output || "Applied history cleared.");
 });
 
-window.seekApp.onLog((message) => {
-  appendLog(message);
+aiModeSelect.addEventListener("change", toggleByokVisibility);
+
+toggleKeyBtn.addEventListener("click", () => {
+  keyVisible = !keyVisible;
+  apiKeyInput.type = keyVisible ? "text" : "password";
+  toggleKeyBtn.textContent = keyVisible ? "Hide" : "Show";
 });
 
-window.seekApp.onStopped(() => {
-  appendLog("Automation has stopped.");
+testConnectionBtn.addEventListener("click", async () => {
+  await saveAISettings();
+  aiStatus.textContent = "Testing connection...";
+  testConnectionBtn.disabled = true;
+  const result = await window.seekApp.testAIConnection();
+  testConnectionBtn.disabled = false;
+  if (result.success) {
+    aiStatus.textContent = "Connection OK!";
+    appendLog("[OK] AI connection successful.");
+  } else {
+    aiStatus.textContent = `Failed: ${result.message}`;
+    appendLog(`[WARN] AI connection failed: ${result.message}`);
+  }
 });
+
+saveAIBtn.addEventListener("click", saveAISettings);
+
+window.seekApp.onLog((message) => appendLog(message));
+window.seekApp.onStopped(() => appendLog("Automation has stopped."));
 
 loadConfig();
+loadAIConfig();
