@@ -13,9 +13,18 @@ import { loadConfig } from "./automation/config.js";
 import { createCoverLetter, saveCoverLetter } from "./cover-letter.js";
 import { logError, logStep, logSuccess, logWarn } from "./logger.js";
 
+let shouldStop = false;
+
 process.on("SIGTERM", () => {
-  logWarn("Automation stopped by user.");
-  process.exit(0);
+  if (shouldStop) return;
+  shouldStop = true;
+  logWarn("Stopping safely after current job...");
+});
+
+process.on("SIGINT", () => {
+  if (shouldStop) return;
+  shouldStop = true;
+  logWarn("Stopping safely after current job...");
 });
 
 const config = loadConfig();
@@ -45,6 +54,7 @@ try {
   let blocked = false;
 
   for (const searchUrl of searchUrls) {
+    if (shouldStop) break;
     logStep("Opening SEEK search", { searchUrl });
     await page.goto(searchUrl, { waitUntil: "domcontentloaded" });
     await waitForHumanVerification(page);
@@ -66,6 +76,7 @@ try {
     let searchHandled = 0;
     let searchAttempted = 0;
     for (const url of candidateUrls) {
+      if (shouldStop) break;
       if (handledUrls.has(url)) {
         logStep("Skipping already handled job", { url });
         continue;
@@ -108,13 +119,18 @@ try {
       });
     }
 
-    logSuccess("Search handling complete", {
-      searchUrl,
-      selectedCount: candidateUrls.length,
-      attemptedCount: searchAttempted,
-      handledCount: searchHandled
-    });
-    if (blocked) break;
+      logSuccess("Search handling complete", {
+        searchUrl,
+        selectedCount: candidateUrls.length,
+        attemptedCount: searchAttempted,
+        handledCount: searchHandled
+      });
+      if (blocked || shouldStop) break;
+    }
+  }
+
+  if (shouldStop) {
+    logWarn("Automation stopped by user.", { totalHandled });
   }
 
   logSuccess("Apply run complete", {
