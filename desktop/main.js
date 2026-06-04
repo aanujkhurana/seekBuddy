@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "path";
+import os from "os";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import fs from "fs";
@@ -65,7 +66,73 @@ function spawnScript(scriptRelPath, env) {
   });
 }
 
-app.whenReady().then(createWindow);
+function getPlaywrightCacheDir() {
+  const home = os.homedir();
+  const cacheDir = process.platform === "darwin"
+    ? path.join(home, "Library", "Caches", "ms-playwright")
+    : process.platform === "win32"
+      ? path.join(process.env.USERPROFILE || home, "AppData", "Local", "ms-playwright")
+      : path.join(home, ".cache", "ms-playwright");
+  return cacheDir;
+}
+
+function browsersInstalled() {
+  const cacheDir = getPlaywrightCacheDir();
+  if (!fs.existsSync(cacheDir)) return false;
+  const entries = fs.readdirSync(cacheDir);
+  return entries.some((e) => e.startsWith("chromium"));
+}
+
+async function promptInstallBrowsers() {
+  if (browsersInstalled()) return;
+
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "Playwright Browser Required",
+    message: "This app needs the Chromium browser engine to automate SEEK.",
+    detail: "Would you like to download and install it now? (Requires internet. ~150 MB.)",
+    buttons: ["Install Chromium", "Later"],
+    defaultId: 0,
+    cancelId: 1
+  });
+
+  if (result.response !== 0) return;
+
+  send("automation-log", "[INFO] Installing Playwright Chromium...\n");
+
+  return new Promise((resolve) => {
+    const proc = spawn("npx", ["playwright", "install", "chromium"], {
+      cwd: ROOT,
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: true
+    });
+
+    proc.stdout.on("data", (data) => send("automation-log", data.toString()));
+    proc.stderr.on("data", (data) => send("automation-log", data.toString()));
+
+    proc.on("close", (code) => {
+      if (code === 0) {
+        send("automation-log", "[OK] Playwright Chromium installed.\n");
+        dialog.showMessageBox(mainWindow, {
+          type: "info",
+          title: "Installation Complete",
+          message: "Chromium browser engine installed successfully."
+        });
+      } else {
+        send("automation-log", `[ERROR] Installation failed (code ${code}).\n`);
+        dialog.showErrorBox("Installation Failed", "Could not install Chromium. Try running `npm run install:browsers` in the project directory.");
+      }
+      resolve();
+    });
+  });
+}
+
+app.whenReady().then(async () => {
+  createWindow();
+  if (!browsersInstalled()) {
+    await promptInstallBrowsers();
+  }
+});
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
@@ -191,6 +258,41 @@ ipcMain.handle("clear-applied", async () => {
   const filePath = path.join(getUserDataPath(), "handled-applications.json");
   fs.writeFileSync(filePath, "[]");
   return { success: true };
+});
+
+// ---- Browser check ----
+
+ipcMain.handle("check-browsers", async () => {
+  return { installed: browsersInstalled() };
+});
+
+ipcMain.handle("install-browsers", async () => {
+  const prevLog = [];
+  const proc = spawn("npx", ["playwright", "install", "chromium"], {
+    cwd: ROOT,
+    stdio: ["ignore", "pipe", "pipe"],
+    shell: true
+  });
+
+  proc.stdout.on("data", (data) => {
+    const msg = data.toString();
+    prevLog.push(msg);
+    send("automation-log", msg);
+  });
+  proc.stderr.on("data", (data) => {
+    const msg = data.toString();
+    prevLog.push(msg);
+    send("automation-log", msg);
+  });
+
+  return new Promise((resolve) => {
+    proc.on("close", (code) => {
+      const ok = code === 0;
+      if (ok) send("automation-log", "[OK] Playwright Chromium installed.\n");
+      else send("automation-log", `[ERROR] Installation failed (code ${code}).\n`);
+      resolve({ success: ok });
+    });
+  });
 });
 
 // ---- Misc ----

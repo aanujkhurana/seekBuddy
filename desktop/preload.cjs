@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("seekMateAPI", {
   loadAppliedJobs: () => ipcRenderer.invoke("load-applied-jobs"),
   clearApplied: () => ipcRenderer.invoke("clear-applied"),
 
+  checkBrowsers: () => ipcRenderer.invoke("check-browsers"),
+  installBrowsers: () => ipcRenderer.invoke("install-browsers"),
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
 
   onLog: (cb) => { ipcRenderer.on("automation-log", (_e, d) => cb(d)); },

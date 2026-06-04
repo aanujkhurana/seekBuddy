@@ -10,6 +10,13 @@ const $ = (id) => document.getElementById(id);
 async function init() {
   $("version").textContent = `v${await api.getAppVersion()}`;
 
+  const browserStatus = await api.checkBrowsers();
+  if (!browserStatus.installed) {
+    appendLog("[WARN] Playwright Chromium not installed. Click 'Install Browsers' in the header or run `npm run install:browsers`.\n");
+  } else {
+    appendLog("[OK] Playwright Chromium is ready.\n");
+  }
+
   const config = await api.loadConfig();
   if (config) populateForm(config);
 
@@ -209,6 +216,14 @@ function attachEventListeners() {
   $("stop-btn").addEventListener("click", stopAutomation);
   $("login-btn").addEventListener("click", startLogin);
   $("send-enter-btn").addEventListener("click", () => api.sendStdin("\n"));
+  $("install-browsers-btn").addEventListener("click", async () => {
+    $("install-browsers-btn").disabled = true;
+    $("install-browsers-btn").textContent = "Installing...";
+    appendLog("[INFO] Installing Playwright Chromium...\n");
+    await api.installBrowsers();
+    $("install-browsers-btn").textContent = "Install Browsers";
+    $("install-browsers-btn").disabled = false;
+  });
   $("clear-history-btn").addEventListener("click", clearHistory);
   $("browse-resume").addEventListener("click", browseResume);
   $("browse-cover-letter").addEventListener("click", browseCoverLetter);
