@@ -13,7 +13,7 @@ const COVER_LETTER_FOOTER = [
 export async function createCoverLetter({ config, job }) {
   logStep("Creating cover letter", {
     company: job.company || "Unknown",
-    title: job.title || config.jobTitle,
+    title: job.title || config.jobTitle || config.keywords || "Role",
     openaiEnabled: Boolean(config.openai?.enabled)
   });
 
@@ -71,9 +71,14 @@ async function createAiCoverLetter({ config, job }) {
     "You are writing a tailored job application cover letter for the applicant.",
     "",
     "Inputs:",
-    `Applicant: ${JSON.stringify(config.applicant || {}, null, 2)}`,
+    `Applicant: ${JSON.stringify({
+      email: config.email,
+      name: config.name,
+      phone: config.phone,
+      ...(config.applicant || {})
+    }, null, 2)}`,
     `Resume summary: ${(config.resumeSummary || []).join(" ")}`,
-    `Target role: ${job.title || config.jobTitle}`,
+    `Target role: ${job.title || config.jobTitle || config.keywords || "Role"}`,
     `Company: ${job.company || "Unknown"}`,
     `Tone: ${config.coverLetter.tone}`,
     `Word limit: ${config.coverLetter.wordLimit}`,
@@ -153,9 +158,12 @@ async function createAiCoverLetter({ config, job }) {
 }
 
 function createTemplateCoverLetter({ config, job }) {
-  const applicant = config.applicant || {};
+  const applicant = {
+    ...(config.applicant || {}),
+    workRights: config.workRights || config.applicant?.workRights
+  };
   const summary = config.resumeSummary || [];
-  const role = job.title || config.jobTitle;
+  const role = job.title || config.jobTitle || config.keywords || "Role";
   const company = job.company || "your team";
   const jobText = `${job.title || ""}\n${job.description || ""}`.toLowerCase();
   const matchedPoints = summary.filter((point) => {

@@ -8,6 +8,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.join(__dirname, "..");
 
+const DEFAULTS = {
+  seekBaseUrl: "https://www.seek.com.au",
+  email: "",
+  password: "",
+  resumePath: "",
+  coverLetterPath: "",
+  keywords: "",
+  location: "",
+  maxApplications: 5,
+  reviewBeforeApply: true,
+  slowMoMs: 80,
+  browserProfileDir: ".playwright-seek-profile"
+};
+
 let mainWindow;
 let runningProcess = null;
 let loginProcess = null;
@@ -63,15 +77,17 @@ app.on("before-quit", () => {
 // ---- Config ----
 
 ipcMain.handle("save-config", async (_, config) => {
+  const merged = { ...DEFAULTS, ...config };
   const filePath = path.join(getUserDataPath(), "config.json");
-  fs.writeFileSync(filePath, JSON.stringify(config, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
   return { success: true };
 });
 
 ipcMain.handle("load-config", async () => {
   const filePath = path.join(getUserDataPath(), "config.json");
   if (!fs.existsSync(filePath)) return null;
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  return { ...DEFAULTS, ...raw };
 });
 
 // ---- File Picker ----

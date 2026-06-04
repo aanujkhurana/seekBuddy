@@ -6,10 +6,10 @@ import {
   buildSearchUrls,
   ensureDir,
   hasFlag,
-  loadConfig,
   readJsonFile,
   writeJsonFile
 } from "./config.js";
+import { loadConfig } from "./automation/config.js";
 import { createCoverLetter, saveCoverLetter } from "./cover-letter.js";
 import { logError, logStep, logSuccess, logWarn } from "./logger.js";
 
@@ -120,7 +120,7 @@ try {
   logSuccess("Apply run complete", {
     totalHandled
   });
-  if (!dryRun && config.pauseBeforeSubmit && totalHandled > 0) {
+  if (!dryRun && (config.reviewBeforeApply ?? config.pauseBeforeSubmit ?? true) && totalHandled > 0) {
     await waitForBatchReview(context, totalHandled);
   }
 } finally {
@@ -338,10 +338,10 @@ async function fillApplicationBasics(page, config) {
     url: page.url()
   });
 
-  await fillApplicantField(page, "first name", ["first name", "given name"], firstName(config.applicant?.name));
-  await fillApplicantField(page, "last name", ["last name", "family name", "surname"], lastName(config.applicant?.name));
-  await fillApplicantField(page, "email", ["email"], config.applicant?.email);
-  await fillApplicantField(page, "phone", ["phone", "mobile"], config.applicant?.phone);
+  await fillApplicantField(page, "first name", ["first name", "given name"], firstName(config.name || config.applicant?.name));
+  await fillApplicantField(page, "last name", ["last name", "family name", "surname"], lastName(config.name || config.applicant?.name));
+  await fillApplicantField(page, "email", ["email"], config.email || config.applicant?.email);
+  await fillApplicantField(page, "phone", ["phone", "mobile"], config.phone || config.applicant?.phone);
 
   logStep("Attaching resume", {
     resumePath: config.resumePath

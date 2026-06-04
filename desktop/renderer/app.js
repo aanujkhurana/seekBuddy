@@ -21,12 +21,14 @@ async function init() {
 }
 
 function populateForm(config) {
-  $("email").value = config.applicant?.email || "";
+  $("email").value = config.email || "";
   $("password").value = "";
-  $("job-title").value = config.jobTitle || "";
+  $("keywords").value = config.keywords || "";
   $("location").value = config.location || "";
   $("max-apps").value = config.maxApplications || 5;
+  $("review-before-apply").checked = config.reviewBeforeApply !== false;
   $("resume-path").value = config.resumePath || "";
+  $("cover-letter-path").value = config.coverLetterPath || "";
   $("cover-tone").value = config.coverLetter?.tone || "";
   $("word-limit").value = config.coverLetter?.wordLimit || 280;
   $("openai-enabled").checked = config.openai?.enabled || false;
@@ -39,20 +41,16 @@ function populateForm(config) {
 function readForm() {
   return {
     seekBaseUrl: "https://www.seek.com.au",
-    jobTitle: $("job-title").value.trim(),
+    email: $("email").value.trim(),
+    password: $("password").value,
+    keywords: $("keywords").value.trim(),
     location: $("location").value.trim(),
-    resumePath: $("resume-path").value.trim(),
     maxApplications: parseInt($("max-apps").value, 10) || 5,
-    pauseBeforeSubmit: true,
+    reviewBeforeApply: $("review-before-apply").checked,
+    resumePath: $("resume-path").value.trim(),
+    coverLetterPath: $("cover-letter-path").value.trim() || null,
     slowMoMs: 80,
     browserProfileDir: ".playwright-seek-profile",
-    applicant: {
-      name: "",
-      phone: "",
-      email: $("email").value.trim(),
-      city: "",
-      workRights: ""
-    },
     coverLetter: {
       tone: $("cover-tone").value.trim() || "friendly, direct, confident, human, and tailored",
       wordLimit: parseInt($("word-limit").value, 10) || 280
@@ -179,6 +177,16 @@ async function clearHistory() {
   }
 }
 
+async function browseCoverLetter() {
+  const p = await api.selectFile({
+    filters: [
+      { name: "Documents", extensions: ["pdf", "doc", "docx", "txt", "rtf"] },
+      { name: "All Files", extensions: ["*"] }
+    ]
+  });
+  if (p) $("cover-letter-path").value = p;
+}
+
 async function browseResume() {
   const p = await api.selectFile({
     filters: [
@@ -203,6 +211,7 @@ function attachEventListeners() {
   $("send-enter-btn").addEventListener("click", () => api.sendStdin("\n"));
   $("clear-history-btn").addEventListener("click", clearHistory);
   $("browse-resume").addEventListener("click", browseResume);
+  $("browse-cover-letter").addEventListener("click", browseCoverLetter);
   $("clear-log-btn").addEventListener("click", () => {
     $("log-output").textContent = "";
     logLineCount = 0;

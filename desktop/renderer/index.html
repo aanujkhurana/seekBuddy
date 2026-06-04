@@ -38,8 +38,8 @@
         <fieldset>
           <legend>Search Settings</legend>
           <div class="form-row">
-            <label for="job-title">Job Title(s)</label>
-            <input type="text" id="job-title" placeholder="Frontend Developer, Full Stack Developer">
+            <label for="keywords">Keywords</label>
+            <input type="text" id="keywords" placeholder="Frontend Developer, Full Stack Developer">
           </div>
           <div class="form-row">
             <label for="location">Location(s)</label>
@@ -48,6 +48,12 @@
           <div class="form-row">
             <label for="max-apps">Max Apps</label>
             <input type="number" id="max-apps" min="1" max="50" value="5">
+          </div>
+          <div class="form-row">
+            <label>
+              <input type="checkbox" id="review-before-apply" checked>
+              Review before apply
+            </label>
           </div>
         </fieldset>
 
@@ -58,6 +64,13 @@
             <div class="file-picker">
               <input type="text" id="resume-path" placeholder="/path/to/resume.pdf" readonly>
               <button id="browse-resume" class="btn btn-secondary">Browse</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="cover-letter-path">Cover Letter</label>
+            <div class="file-picker">
+              <input type="text" id="cover-letter-path" placeholder="/path/to/cover-letter.pdf (optional)" readonly>
+              <button id="browse-cover-letter" class="btn btn-secondary">Browse</button>
             </div>
           </div>
         </fieldset>
