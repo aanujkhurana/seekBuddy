@@ -1,281 +1,119 @@
-const api = window.seekMateAPI;
-const MAX_LOG_LINES = 2000;
-let logLineCount = 0;
-let autoScroll = true;
-let isRunning = false;
-let isLoggingIn = false;
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+const keywordsInput = document.getElementById("keywords");
+const locationInput = document.getElementById("location");
+const maxApplicationsInput = document.getElementById("maxApplications");
+const reviewBeforeApplyInput = document.getElementById("reviewBeforeApply");
 
-const $ = (id) => document.getElementById(id);
+const resumePathText = document.getElementById("resumePath");
+const coverLetterPathText = document.getElementById("coverLetterPath");
+const logs = document.getElementById("logs");
 
-async function init() {
-  $("version").textContent = `v${await api.getAppVersion()}`;
+let resumePath = "";
+let coverLetterPath = "";
 
-  const browserStatus = await api.checkBrowsers();
-  if (!browserStatus.installed) {
-    appendLog("[WARN] Playwright Chromium not installed. Click 'Install Browsers' in the header or run `npm run install:browsers`.\n");
-  } else {
-    appendLog("[OK] Playwright Chromium is ready.\n");
-  }
-
-  const config = await api.loadConfig();
-  if (config) populateForm(config);
-
-  const jobs = await api.loadAppliedJobs();
-  renderHistory(jobs);
-
-  attachEventListeners();
-  setupIPCListeners();
+function appendLog(message) {
+  logs.textContent += `\n${message}`;
+  logs.scrollTop = logs.scrollHeight;
 }
 
-function populateForm(config) {
-  $("email").value = config.email || "";
-  $("password").value = "";
-  $("keywords").value = config.keywords || "";
-  $("location").value = config.location || "";
-  $("max-apps").value = config.maxApplications || 5;
-  $("review-before-apply").checked = config.reviewBeforeApply !== false;
-  $("resume-path").value = config.resumePath || "";
-  $("cover-letter-path").value = config.coverLetterPath || "";
-  $("cover-tone").value = config.coverLetter?.tone || "";
-  $("word-limit").value = config.coverLetter?.wordLimit || 280;
-  $("openai-enabled").checked = config.openai?.enabled || false;
-  if (config.openai?.model) {
-    const opt = $("openai-model").querySelector(`option[value="${config.openai.model}"]`);
-    if (opt) opt.selected = true;
-  }
+async function loadConfig() {
+  const config = await window.seekApp.loadConfig();
+
+  if (!config) return;
+
+  emailInput.value = config.email || "";
+  passwordInput.value = config.password || "";
+  keywordsInput.value = config.keywords || "";
+  locationInput.value = config.location || "";
+  maxApplicationsInput.value = config.maxApplications || 10;
+  reviewBeforeApplyInput.checked = Boolean(config.reviewBeforeApply);
+
+  resumePath = config.resumePath || "";
+  coverLetterPath = config.coverLetterPath || "";
+
+  resumePathText.textContent = resumePath || "No resume selected";
+  coverLetterPathText.textContent = coverLetterPath || "No cover letter selected";
 }
 
-function readForm() {
+function getConfig() {
   return {
-    seekBaseUrl: "https://www.seek.com.au",
-    email: $("email").value.trim(),
-    password: $("password").value,
-    keywords: $("keywords").value.trim(),
-    location: $("location").value.trim(),
-    maxApplications: parseInt($("max-apps").value, 10) || 5,
-    reviewBeforeApply: $("review-before-apply").checked,
-    resumePath: $("resume-path").value.trim(),
-    coverLetterPath: $("cover-letter-path").value.trim() || null,
-    slowMoMs: 80,
-    browserProfileDir: ".playwright-seek-profile",
-    coverLetter: {
-      tone: $("cover-tone").value.trim() || "friendly, direct, confident, human, and tailored",
-      wordLimit: parseInt($("word-limit").value, 10) || 280
-    },
-    openai: {
-      enabled: $("openai-enabled").checked,
-      model: $("openai-model").value
-    }
+    email: emailInput.value.trim(),
+    password: passwordInput.value,
+    keywords: keywordsInput.value.trim(),
+    location: locationInput.value.trim(),
+    maxApplications: Number(maxApplicationsInput.value || 10),
+    reviewBeforeApply: reviewBeforeApplyInput.checked,
+    resumePath,
+    coverLetterPath
   };
 }
 
-async function saveSettings() {
-  const config = readForm();
-  const res = await api.saveConfig(config);
-  if (res.success) {
-    $("save-feedback").textContent = "Settings saved!";
-    setTimeout(() => { $("save-feedback").textContent = ""; }, 2000);
-  }
-}
+document.getElementById("selectResume").addEventListener("click", async () => {
+  const file = await window.seekApp.selectFile({
+    filters: [
+      { name: "Documents", extensions: ["pdf", "doc", "docx"] }
+    ]
+  });
 
-async function startAutomation() {
-  if (isRunning) return;
-  const res = await api.startAutomation();
-  if (res.success) {
-    isRunning = true;
-    setControlsRunning(true);
-    appendLog("[INFO] Starting automation...\n");
+  if (file) {
+    resumePath = file;
+    resumePathText.textContent = file;
+  }
+});
+
+document.getElementById("selectCoverLetter").addEventListener("click", async () => {
+  const file = await window.seekApp.selectFile({
+    filters: [
+      { name: "Documents", extensions: ["pdf", "doc", "docx"] }
+    ]
+  });
+
+  if (file) {
+    coverLetterPath = file;
+    coverLetterPathText.textContent = file;
+  }
+});
+
+document.getElementById("saveConfig").addEventListener("click", async () => {
+  await window.seekApp.saveConfig(getConfig());
+  appendLog("Config saved.");
+});
+
+document.getElementById("start").addEventListener("click", async () => {
+  await window.seekApp.saveConfig(getConfig());
+
+  logs.textContent = "";
+  appendLog("Starting automation...");
+
+  const result = await window.seekApp.startAutomation();
+
+  if (!result.success) {
+    appendLog(result.message);
+  }
+});
+
+document.getElementById("stop").addEventListener("click", async () => {
+  const result = await window.seekApp.stopAutomation();
+
+  if (result.success) {
+    appendLog("Automation stopped.");
   } else {
-    appendLog(`[WARN] ${res.message}\n`);
+    appendLog(result.message);
   }
-}
+});
 
-async function stopAutomation() {
-  if (!isRunning) return;
-  const res = await api.stopAutomation();
-  if (res.success) {
-    appendLog("[INFO] Stopping automation...\n");
-  }
-}
+document.getElementById("clearApplied").addEventListener("click", async () => {
+  const result = await window.seekApp.clearApplied();
+  appendLog(result.output || "Applied history cleared.");
+});
 
-async function startLogin() {
-  if (isLoggingIn) return;
-  const res = await api.startLogin();
-  if (res.success) {
-    isLoggingIn = true;
-    $("login-status-badge").textContent = "Logging in...";
-    $("login-status-badge").className = "badge badge-running";
-    $("login-btn").disabled = true;
-    $("send-enter-btn").disabled = false;
-    appendLog("[INFO] Opening SEEK login in browser...\n");
-  }
-}
+window.seekApp.onLog((message) => {
+  appendLog(message);
+});
 
-async function continueLogin() {
-  const res = await api.continueLogin();
-  if (res.success) {
-    appendLog("[INFO] Sent Enter to login process.\n");
-  }
-}
+window.seekApp.onStopped(() => {
+  appendLog("Automation has stopped.");
+});
 
-function appendLog(text) {
-  const output = $("log-output");
-  const placeholder = output.querySelector(".log-placeholder");
-  if (placeholder) placeholder.remove();
-
-  output.append(document.createTextNode(text));
-  logLineCount += text.split("\n").length - 1;
-
-  if (logLineCount > MAX_LOG_LINES) {
-    const lines = output.textContent.split("\n");
-    const excess = logLineCount - MAX_LOG_LINES;
-    if (excess > 0) {
-      output.textContent = lines.slice(excess).join("\n");
-      logLineCount = lines.length - excess;
-    }
-  }
-
-  if (autoScroll) {
-    output.scrollTop = output.scrollHeight;
-  }
-}
-
-function setControlsRunning(running) {
-  $("start-btn").disabled = running;
-  $("stop-btn").disabled = !running;
-  $("send-enter-btn").disabled = !(running || isLoggingIn);
-  $("status-badge").textContent = running ? "Running" : "Stopped";
-  $("status-badge").className = running ? "badge badge-running" : "badge badge-stopped";
-}
-
-function renderHistory(jobs) {
-  const tbody = $("history-body");
-  $("history-count").textContent = `Total: ${jobs.length} job${jobs.length !== 1 ? "s" : ""}`;
-
-  if (jobs.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No jobs applied yet.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = jobs.slice().reverse().map((job) => {
-    const date = job.handledAt ? new Date(job.handledAt).toLocaleDateString() : "-";
-    const status = job.status || "prepared";
-    return `<tr>
-      <td>${esc(job.title || "-")}</td>
-      <td>${esc(job.company || "-")}</td>
-      <td>${date}</td>
-      <td>${esc(status)}</td>
-    </tr>`;
-  }).join("");
-}
-
-function esc(str) {
-  const div = document.createElement("div");
-  div.textContent = String(str);
-  return div.innerHTML;
-}
-
-async function clearHistory() {
-  if (!confirm("Clear all applied jobs history?")) return;
-  const res = await api.clearApplied();
-  if (res.success) {
-    renderHistory([]);
-    appendLog("[INFO] Applied jobs history cleared.\n");
-  }
-}
-
-async function browseCoverLetter() {
-  const p = await api.selectFile({
-    filters: [
-      { name: "Documents", extensions: ["pdf", "doc", "docx", "txt", "rtf"] },
-      { name: "All Files", extensions: ["*"] }
-    ]
-  });
-  if (p) $("cover-letter-path").value = p;
-}
-
-async function browseResume() {
-  const p = await api.selectFile({
-    filters: [
-      { name: "Resume Files", extensions: ["pdf", "doc", "docx", "txt", "rtf"] },
-      { name: "All Files", extensions: ["*"] }
-    ]
-  });
-  if (p) $("resume-path").value = p;
-}
-
-function attachEventListeners() {
-  $("settings-toggle").addEventListener("click", () => {
-    const body = $("settings-body");
-    const icon = $("settings-icon");
-    body.style.display = body.style.display === "none" ? "" : "none";
-    icon.classList.toggle("collapsed");
-  });
-  $("save-settings-btn").addEventListener("click", saveSettings);
-  $("start-btn").addEventListener("click", startAutomation);
-  $("stop-btn").addEventListener("click", stopAutomation);
-  $("login-btn").addEventListener("click", startLogin);
-  $("send-enter-btn").addEventListener("click", () => api.sendStdin("\n"));
-  $("install-browsers-btn").addEventListener("click", async () => {
-    $("install-browsers-btn").disabled = true;
-    $("install-browsers-btn").textContent = "Installing...";
-    appendLog("[INFO] Installing Playwright Chromium...\n");
-    await api.installBrowsers();
-    $("install-browsers-btn").textContent = "Install Browsers";
-    $("install-browsers-btn").disabled = false;
-  });
-  $("export-history-btn").addEventListener("click", async () => {
-    const res = await api.exportJobs();
-    if (res.success) {
-      appendLog(`[OK] Exported to ${res.path}\n`);
-    } else if (res.message !== "Export cancelled.") {
-      appendLog(`[WARN] ${res.message}\n`);
-    }
-  });
-  $("clear-history-btn").addEventListener("click", clearHistory);
-  $("browse-resume").addEventListener("click", browseResume);
-  $("browse-cover-letter").addEventListener("click", browseCoverLetter);
-  $("clear-log-btn").addEventListener("click", () => {
-    $("log-output").textContent = "";
-    logLineCount = 0;
-  });
-  $("auto-scroll").addEventListener("change", (e) => { autoScroll = e.target.checked; });
-}
-
-function setupIPCListeners() {
-  api.onLog((data) => appendLog(data));
-
-  api.onAutomationStopped(() => {
-    isRunning = false;
-    isLoggingIn = false;
-    setControlsRunning(false);
-    $("login-btn").disabled = false;
-    $("login-status-badge").textContent = "";
-    $("login-status-badge").className = "badge";
-    $("status-badge").textContent = "Idle";
-    $("status-badge").className = "badge badge-idle";
-  });
-
-  api.onLoginStatus((status) => {
-    if (status === "started") {
-      isLoggingIn = true;
-      $("login-status-badge").textContent = "Logging in...";
-      $("login-status-badge").className = "badge badge-running";
-      $("login-btn").disabled = true;
-      $("send-enter-btn").disabled = false;
-    } else if (status === "completed") {
-      isLoggingIn = false;
-      $("login-status-badge").textContent = "Session saved";
-      $("login-status-badge").className = "badge badge-idle";
-      $("login-btn").disabled = false;
-      $("send-enter-btn").disabled = !isRunning;
-    }
-  });
-
-  api.onAppliedJobsUpdated(async () => {
-    const jobs = await api.loadAppliedJobs();
-    renderHistory(jobs);
-  });
-}
-
-document.addEventListener("DOMContentLoaded", init);
+loadConfig();

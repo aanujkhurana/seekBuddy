@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("seekMateAPI", {
+contextBridge.exposeInMainWorld("seekApp", {
   loadConfig: () => ipcRenderer.invoke("load-config"),
   saveConfig: (config) => ipcRenderer.invoke("save-config", config),
   selectFile: (options) => ipcRenderer.invoke("select-file", options),
@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("seekMateAPI", {
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
 
   onLog: (cb) => { ipcRenderer.on("automation-log", (_e, d) => cb(d)); },
+  onStopped: (cb) => { ipcRenderer.on("automation-stopped", () => cb()); },
   onAutomationStopped: (cb) => { ipcRenderer.on("automation-stopped", () => cb()); },
   onLoginStatus: (cb) => { ipcRenderer.on("login-status", (_e, d) => cb(d)); },
   onAppliedJobsUpdated: (cb) => { ipcRenderer.on("applied-jobs-updated", () => cb()); }

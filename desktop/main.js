@@ -257,7 +257,7 @@ ipcMain.handle("load-applied-jobs", async () => {
 ipcMain.handle("clear-applied", async () => {
   const filePath = path.join(getUserDataPath(), "handled-applications.json");
   fs.writeFileSync(filePath, "[]");
-  return { success: true };
+  return { success: true, output: "Applied history cleared." };
 });
 
 // ---- Browser check ----

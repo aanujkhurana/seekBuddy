@@ -1,164 +1,68 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SeekMate Apply Assistant</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <title>Seek Apply Assistant</title>
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div id="app">
-    <header>
-      <h1>SeekMate Apply Assistant</h1>
-      <span id="version"></span>
-      <button id="install-browsers-btn" class="btn btn-small btn-outline" style="margin-left:auto">Install Browsers</button>
-    </header>
-
-    <section id="settings-panel" class="card">
-      <div class="card-header" id="settings-toggle">
-        <h2>Settings</h2>
-        <span class="toggle-icon" id="settings-icon">&#9660;</span>
-      </div>
-      <div id="settings-body">
-        <fieldset>
-          <legend>SEEK Login</legend>
-          <div class="form-row">
-            <label for="email">Email</label>
-            <input type="email" id="email" placeholder="anuj@example.com">
-          </div>
-          <div class="form-row">
-            <label for="password">Password</label>
-            <input type="password" id="password" placeholder="••••••••">
-          </div>
-          <div class="form-row">
-            <button id="login-btn" class="btn btn-secondary">&#128273; Log in to SEEK</button>
-            <span id="login-status-badge" class="badge"></span>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Search Settings</legend>
-          <div class="form-row">
-            <label for="keywords">Keywords</label>
-            <input type="text" id="keywords" placeholder="Frontend Developer, Full Stack Developer">
-          </div>
-          <div class="form-row">
-            <label for="location">Location(s)</label>
-            <input type="text" id="location" placeholder="Gold Coast, Brisbane QLD, Remote">
-          </div>
-          <div class="form-row">
-            <label for="max-apps">Max Apps</label>
-            <input type="number" id="max-apps" min="1" max="50" value="5">
-          </div>
-          <div class="form-row">
-            <label>
-              <input type="checkbox" id="review-before-apply" checked>
-              Review before apply
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Files</legend>
-          <div class="form-row">
-            <label for="resume-path">Resume</label>
-            <div class="file-picker">
-              <input type="text" id="resume-path" placeholder="/path/to/resume.pdf" readonly>
-              <button id="browse-resume" class="btn btn-secondary">Browse</button>
-            </div>
-          </div>
-          <div class="form-row">
-            <label for="cover-letter-path">Cover Letter</label>
-            <div class="file-picker">
-              <input type="text" id="cover-letter-path" placeholder="/path/to/cover-letter.pdf (optional)" readonly>
-              <button id="browse-cover-letter" class="btn btn-secondary">Browse</button>
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Cover Letter &amp; AI</legend>
-          <div class="form-row">
-            <label for="cover-tone">Tone</label>
-            <input type="text" id="cover-tone" placeholder="friendly, direct, confident">
-          </div>
-          <div class="form-row">
-            <label for="word-limit">Word Limit</label>
-            <input type="number" id="word-limit" min="50" max="500" value="280">
-          </div>
-          <div class="form-row">
-            <label>
-              <input type="checkbox" id="openai-enabled">
-              OpenAI Cover Letters
-            </label>
-          </div>
-          <div class="form-row">
-            <label for="openai-model">OpenAI Model</label>
-            <select id="openai-model">
-              <option value="gpt-5-mini">gpt-5-mini</option>
-              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-              <option value="gpt-4o">gpt-4o</option>
-              <option value="gpt-4o-mini">gpt-4o-mini</option>
-              <option value="o3-mini">o3-mini</option>
-            </select>
-          </div>
-        </fieldset>
-
-        <div class="form-actions">
-          <button id="save-settings-btn" class="btn btn-primary">Save Settings</button>
-          <span id="save-feedback" class="feedback"></span>
-        </div>
-      </div>
+  <main class="app">
+    <section class="hero">
+      <h1>Seek Apply Assistant</h1>
+      <p>Configure your job search, run the assistant, and stop anytime.</p>
     </section>
 
-    <section id="controls-panel" class="card">
-      <h2>Automation</h2>
-      <div class="controls-row">
-        <button id="start-btn" class="btn btn-success">&#9654; Start Applying</button>
-        <button id="stop-btn" class="btn btn-danger" disabled>&#9632; Stop</button>
-        <button id="send-enter-btn" class="btn btn-outline" disabled>Send Enter</button>
-      </div>
-      <div class="status-row">
-        <span>Status:</span>
-        <span id="status-badge" class="badge badge-idle">Idle</span>
-      </div>
+    <section class="card">
+      <h2>Login</h2>
+
+      <label>Email</label>
+      <input id="email" type="email" placeholder="you@email.com" />
+
+      <label>Password</label>
+      <input id="password" type="password" placeholder="Seek password" />
     </section>
 
-    <section id="log-panel" class="card">
-      <div class="card-header">
-        <h2>Live Log</h2>
-        <label class="auto-scroll-label">
-          <input type="checkbox" id="auto-scroll" checked>
-          Auto-scroll
-        </label>
-        <button id="clear-log-btn" class="btn btn-small btn-outline">Clear</button>
-      </div>
-      <pre id="log-output"><span class="log-placeholder">Log output will appear here...</span></pre>
+    <section class="card">
+      <h2>Job Search Settings</h2>
+
+      <label>Keywords</label>
+      <input id="keywords" placeholder="frontend developer, react, vue" />
+
+      <label>Location</label>
+      <input id="location" placeholder="Brisbane, Gold Coast, Remote" />
+
+      <label>Maximum applications per run</label>
+      <input id="maxApplications" type="number" value="10" />
+
+      <label>
+        <input id="reviewBeforeApply" type="checkbox" checked />
+        Review before applying
+      </label>
     </section>
 
-    <section id="history-panel" class="card">
-      <h2>Applied Jobs</h2>
-      <div id="history-count"></div>
-      <table id="history-table">
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Company</th>
-            <th>Date</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="history-body">
-          <tr><td colspan="4" class="empty-state">No jobs applied yet.</td></tr>
-        </tbody>
-      </table>
-      <div class="form-actions">
-        <button id="export-history-btn" class="btn btn-secondary">Export</button>
-        <button id="clear-history-btn" class="btn btn-danger">Clear History</button>
-      </div>
-    </section>
-  </div>
+    <section class="card">
+      <h2>Documents</h2>
 
-  <script src="app.js"></script>
+      <button id="selectResume">Choose Resume</button>
+      <p id="resumePath">No resume selected</p>
+
+      <button id="selectCoverLetter">Choose Cover Letter</button>
+      <p id="coverLetterPath">No cover letter selected</p>
+    </section>
+
+    <section class="actions">
+      <button id="saveConfig">Save Config</button>
+      <button id="start" class="primary">Start</button>
+      <button id="stop" class="danger">Stop</button>
+      <button id="clearApplied">Clear Applied History</button>
+    </section>
+
+    <section class="card">
+      <h2>Live Logs</h2>
+      <pre id="logs"></pre>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
 </body>
 </html>
