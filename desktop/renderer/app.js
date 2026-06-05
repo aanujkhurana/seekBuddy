@@ -1,5 +1,7 @@
 const settingsToggle = document.getElementById("settingsToggle");
 const settingsBack = document.getElementById("settingsBack");
+const aiSettingsAlert = document.getElementById("aiSettingsAlert");
+const aiSettingsState = document.getElementById("aiSettingsState");
 const openLoginBtns = Array.from(document.querySelectorAll("[data-open-login]"));
 const logoutLoginBtns = Array.from(document.querySelectorAll("[data-logout-login]"));
 const loginStatuses = Array.from(document.querySelectorAll("[data-login-status]"));
@@ -59,6 +61,7 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
   document.body.classList.toggle("login-locked", !loginValidated);
   document.body.classList.toggle("logged-in", loginValidated);
   if (!loginValidated) document.body.classList.remove("settings-open");
+  updateSettingsToggleState();
 
   openLoginBtns.forEach((button) => {
     button.style.display = loginValidated ? "none" : "";
@@ -70,7 +73,7 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
   });
   loginStateBadges.forEach((badge) => {
     badge.className = "session-badge " + (loginValidated ? "logged-in" : inProgress ? "checking" : "logged-out");
-    badge.textContent = loginValidated ? "Logged in" : inProgress ? "Checking login..." : "Not logged in";
+    badge.textContent = loginValidated ? "SEEK logged in" : inProgress ? "Checking SEEK..." : "Not logged in";
   });
   loginHelp.forEach((element) => {
     element.style.display = loginValidated ? "none" : "";
@@ -85,10 +88,26 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
 function openSettings() {
   if (!loginValidated) return;
   document.body.classList.add("settings-open");
+  updateSettingsToggleState();
 }
 
 function closeSettings() {
   document.body.classList.remove("settings-open");
+  updateSettingsToggleState();
+}
+
+function toggleSettings() {
+  if (document.body.classList.contains("settings-open")) {
+    closeSettings();
+  } else {
+    openSettings();
+  }
+}
+
+function updateSettingsToggleState() {
+  const isOpen = document.body.classList.contains("settings-open");
+  settingsToggle.setAttribute("aria-label", isOpen ? "Close settings" : "Open settings");
+  settingsToggle.title = isOpen ? "Close settings" : "Settings";
 }
 
 function splitSearchValues(value) {
@@ -232,12 +251,29 @@ async function loadAIConfig() {
 
   hostedRegistered = Boolean(aiCfg.authToken);
   toggleByokVisibility();
+  updateAIConfiguredState();
 }
 
 function toggleByokVisibility() {
   const isByok = aiModeSelect.value === "byok";
   hostedSettings.style.display = isByok ? "none" : "";
   byokSettings.style.display = isByok ? "" : "none";
+  updateAIConfiguredState();
+}
+
+function isAIConfigured() {
+  if (aiModeSelect.value === "hosted") {
+    return hostedRegistered;
+  }
+  return Boolean(apiKeyInput.value.trim() && byokModelInput.value.trim());
+}
+
+function updateAIConfiguredState() {
+  const configured = isAIConfigured();
+  document.body.classList.toggle("ai-not-configured", !configured);
+  aiSettingsAlert.style.display = configured ? "none" : "";
+  aiSettingsState.className = "settings-state " + (configured ? "ok" : "warn");
+  aiSettingsState.textContent = configured ? "Configured" : "Needs setup";
 }
 
 function getAIConfig() {
@@ -272,6 +308,7 @@ async function registerHostedIfNeeded() {
     aiStatus.textContent = `Backend: ${result.message}`;
     appendLog(`[WARN] Hosted registration: ${result.message}`);
   }
+  updateAIConfiguredState();
 }
 
 async function saveAISettings() {
@@ -291,6 +328,7 @@ async function saveAISettings() {
   }
 
   aiStatus.textContent = "AI settings saved.";
+  updateAIConfiguredState();
   appendLog("AI settings saved.");
 }
 
@@ -388,7 +426,7 @@ searchLocationInput.addEventListener("keydown", (event) => {
   }
 });
 
-settingsToggle.addEventListener("click", openSettings);
+settingsToggle.addEventListener("click", toggleSettings);
 settingsBack.addEventListener("click", closeSettings);
 
 async function openSeekLogin() {
@@ -478,6 +516,9 @@ exportJobsBtn.addEventListener("click", async () => {
 });
 
 aiModeSelect.addEventListener("change", toggleByokVisibility);
+backendUrlInput.addEventListener("input", updateAIConfiguredState);
+byokModelInput.addEventListener("input", updateAIConfiguredState);
+apiKeyInput.addEventListener("input", updateAIConfiguredState);
 
 toggleKeyBtn.addEventListener("click", () => {
   keyVisible = !keyVisible;

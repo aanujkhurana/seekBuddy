@@ -320,6 +320,7 @@ pre {
 }
 
 .controls-logs-card .actions {
+  justify-content: center;
   margin: 0 0 10px;
 }
 
@@ -328,7 +329,7 @@ pre {
 }
 
 .controls-logs-card #start {
-  min-width: 260px;
+  min-width: 360px;
 }
 
 .logs-empty {

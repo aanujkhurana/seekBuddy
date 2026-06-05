@@ -13,7 +13,13 @@
           <h1>Seek Apply Assistant</h1>
           <p>Configure your job search, run the assistant, and stop anytime.</p>
         </div>
-        <button id="settingsToggle" class="icon-btn settings-btn" aria-label="Open settings" title="Settings">⚙</button>
+        <div class="header-actions">
+          <div id="headerLoginBadge" class="session-badge header-session logged-out" data-login-badge>Not logged in</div>
+          <button id="settingsToggle" class="icon-btn settings-btn" aria-label="Open settings" title="Settings">
+            <span aria-hidden="true">⚙</span>
+            <span id="settingsAlert" class="settings-alert" aria-hidden="true">!</span>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -129,8 +135,15 @@
         <p class="hint login-help" data-login-status>Sign in manually before configuring applications. Your SEEK browser session is stored locally and can survive app restarts until SEEK expires it.</p>
       </section>
 
-      <section class="card">
-        <h2>AI Settings</h2>
+      <section class="card" id="aiSettingsCard">
+        <div class="card-title-row">
+          <h2>AI Settings</h2>
+          <span id="aiSettingsState" class="settings-state warn">Needs setup</span>
+        </div>
+        <div id="aiSettingsAlert" class="alert-note">
+          <strong>AI settings not configured.</strong>
+          <span>Open AI Settings and connect built-in AI or add your own API key before using AI features.</span>
+        </div>
 
         <label>AI Mode</label>
         <select id="aiMode">
