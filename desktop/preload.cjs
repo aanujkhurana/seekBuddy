@@ -26,10 +26,15 @@ contextBridge.exposeInMainWorld("seekApp", {
   loadApiKey: () => ipcRenderer.invoke("load-api-key"),
   deleteApiKey: () => ipcRenderer.invoke("delete-api-key"),
   testAIConnection: () => ipcRenderer.invoke("test-ai-connection"),
+  registerHosted: (payload) => ipcRenderer.invoke("register-hosted", payload),
 
   onLog: (cb) => { ipcRenderer.on("automation-log", (_e, d) => cb(d)); },
   onStopped: (cb) => { ipcRenderer.on("automation-stopped", () => cb()); },
   onAutomationStopped: (cb) => { ipcRenderer.on("automation-stopped", () => cb()); },
   onLoginStatus: (cb) => { ipcRenderer.on("login-status", (_e, d) => cb(d)); },
-  onAppliedJobsUpdated: (cb) => { ipcRenderer.on("applied-jobs-updated", () => cb()); }
+  onAppliedJobsUpdated: (cb) => { ipcRenderer.on("applied-jobs-updated", () => cb()); },
+  onStatusChange: (cb) => { ipcRenderer.on("automation-status", (_e, d) => cb(d)); },
+  getAutomationStatus: () => ipcRenderer.invoke("get-automation-status"),
+  getUsageStats: () => ipcRenderer.invoke("get-usage-stats"),
+  getBillingPlans: () => ipcRenderer.invoke("get-billing-plans"),
 });

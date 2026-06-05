@@ -119,14 +119,13 @@ try {
       });
     }
 
-      logSuccess("Search handling complete", {
-        searchUrl,
-        selectedCount: candidateUrls.length,
-        attemptedCount: searchAttempted,
-        handledCount: searchHandled
-      });
-      if (blocked || shouldStop) break;
-    }
+    logSuccess("Search handling complete", {
+      searchUrl,
+      selectedCount: candidateUrls.length,
+      attemptedCount: searchAttempted,
+      handledCount: searchHandled
+    });
+    if (blocked || shouldStop) break;
   }
 
   if (shouldStop) {

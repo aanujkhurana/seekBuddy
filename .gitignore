@@ -6,5 +6,6 @@ data/
 out/
 .env
 *.log
+dist/
 desktop/dist/
 desktop/release/

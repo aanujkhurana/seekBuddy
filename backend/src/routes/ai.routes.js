@@ -6,6 +6,26 @@ import { checkAIGenerationLimit, incrementAIGenerations } from "../middleware/ra
 
 const router = Router();
 
+router.post("/test", async (req, res) => {
+  try {
+    const result = await generateWithFallback({
+      task: "generate",
+      system: "Reply with only the word: OK",
+      prompt: "OK",
+      maxTokens: 10
+    });
+    res.json({
+      success: true,
+      model: result.modelUsed
+    });
+  } catch (err) {
+    res.json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
 router.post("/generate", checkAIGenerationLimit, async (req, res) => {
   try {
     const { system, prompt, maxTokens, task } = req.body;
@@ -219,6 +239,115 @@ router.post("/job-match", checkAIGenerationLimit, async (req, res) => {
     });
   } catch (err) {
     console.error("[AI] job-match error:", err);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.post("/red-flags", checkAIGenerationLimit, async (req, res) => {
+  try {
+    const { jobDescription } = req.body;
+    if (!jobDescription) {
+      return res.status(400).json({ error: "jobDescription is required" });
+    }
+
+    const cacheKey = createCacheKey({ task: "redFlags", resumeText: "", jobDescription });
+
+    const cached = getCached(req.user.id, "redFlags", cacheKey);
+    if (cached) {
+      let parsed;
+      try { parsed = JSON.parse(cached.output); } catch { parsed = { redFlags: [], riskLevel: "low", reason: cached.output }; }
+      return res.json({ ...parsed, model: cached.model_used, cached: true, cost: cached.cost });
+    }
+
+    const system = `You are a job ad analyst. Identify red flags in job postings. Return JSON only.`;
+    const prompt = [
+      `Job Description:\n${jobDescription}`,
+      "",
+      "Look for: unpaid trial, commission only, vague role, unrealistic requirements, no salary listed, suspicious contact details, unpaid internship, misleading junior role, visa/work-rights issues, excessive overtime expectations.",
+      "",
+      "Return JSON only: { redFlags: string[], riskLevel: 'low' | 'medium' | 'high', reason: string }"
+    ].join("\n");
+
+    const result = await generateWithFallback({
+      task: "redFlags",
+      system,
+      prompt,
+      maxTokens: 500
+    });
+
+    let parsed;
+    try {
+      parsed = JSON.parse(result.content.replace(/```json|```/g, "").trim());
+    } catch {
+      parsed = { redFlags: [], riskLevel: "low", reason: result.content };
+    }
+
+    const cost = logCost(req.user.id, "redFlags", result.modelUsed, result.tokensInput, result.tokensOutput);
+    setCache(req.user.id, "redFlags", cacheKey, result.content, result.modelUsed, result.tokensInput, result.tokensOutput, cost);
+    incrementAIGenerations(req.user.id);
+
+    res.json({
+      ...parsed,
+      model: result.modelUsed,
+      cached: false,
+      cost
+    });
+  } catch (err) {
+    console.error("[AI] red-flags error:", err);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.post("/summarize", checkAIGenerationLimit, async (req, res) => {
+  try {
+    const { jobDescription, jobTitle } = req.body;
+    if (!jobDescription) {
+      return res.status(400).json({ error: "jobDescription is required" });
+    }
+
+    const cacheKey = createCacheKey({
+      task: "summarize",
+      resumeText: "",
+      jobDescription: JSON.stringify({ jobTitle, jobDescription })
+    });
+
+    const cached = getCached(req.user.id, "summarize", cacheKey);
+    if (cached) {
+      return res.json({
+        summary: cached.output,
+        model: cached.model_used,
+        cached: true,
+        cost: cached.cost
+      });
+    }
+
+    const system = `You are a job ad summarizer. Create a concise summary of the key points from a job description.`;
+    const prompt = [
+      jobTitle ? `Job Title: ${jobTitle}` : "",
+      `Job Description:\n${jobDescription}`,
+      "",
+      "Provide a concise summary covering: role overview, key responsibilities, required skills, salary/benefits if mentioned, and any notable details. Keep it under 200 words."
+    ].filter(Boolean).join("\n");
+
+    const result = await generateWithFallback({
+      task: "summarize",
+      system,
+      prompt,
+      maxTokens: 500
+    });
+
+    const cost = logCost(req.user.id, "summarize", result.modelUsed, result.tokensInput, result.tokensOutput);
+    setCache(req.user.id, "summarize", cacheKey, result.content, result.modelUsed, result.tokensInput, result.tokensOutput, cost);
+    incrementAIGenerations(req.user.id);
+
+    res.json({
+      summary: result.content,
+      model: result.modelUsed,
+      cached: false,
+      cost
+    });
+  } catch (err) {
+    console.error("[AI] summarize error:", err);
     res.status(502).json({ error: err.message });
   }
 });

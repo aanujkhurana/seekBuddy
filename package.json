@@ -15,37 +15,43 @@
     "build:win": "electron-builder --win",
     "build": "electron-builder",
     "backend": "node backend/src/index.js",
-    "backend:dev": "node --watch backend/src/index.js"
+    "backend:dev": "node --watch backend/src/index.js",
+    "test": "node --test test/ai-service.test.js test/desktop-config.test.js test/backend-routes.test.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
-    "playwright": "^1.52.0",
-    "electron": "^33.0.0"
+    "playwright": "^1.52.0"
   },
   "devDependencies": {
+    "electron": "^33.0.0",
     "electron-builder": "^25.0.0"
   },
   "build": {
     "appId": "com.anuj.seekapplyassistant",
     "productName": "Seek Apply Assistant",
+    "directories": {
+      "output": "dist"
+    },
     "files": [
       "desktop/**/*",
       "src/**/*",
-      "package.json",
-      "node_modules/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "user-data",
-        "to": "user-data",
-        "filter": ["**/*"]
-      }
+      "package.json"
     ],
     "mac": {
-      "target": ["dmg"]
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity"
     },
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
     }
   }
 }

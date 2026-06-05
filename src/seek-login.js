@@ -1,7 +1,7 @@
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { chromium } from "playwright";
-import { loadConfig } from "./config.js";
+import { loadConfig } from "./automation/config.js";
 
 const config = loadConfig();
 

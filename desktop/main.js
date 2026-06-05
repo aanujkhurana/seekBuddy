@@ -4,32 +4,11 @@ import os from "os";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import fs from "fs";
-import crypto from "crypto";
+import { DEFAULTS, encryptKey as fallbackEncrypt, decryptKey as fallbackDecrypt } from "./config-utils.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.join(__dirname, "..");
-
-const DEFAULTS = {
-  seekBaseUrl: "https://www.seek.com.au",
-  email: "",
-  password: "",
-  resumePath: "",
-  coverLetterPath: "",
-  keywords: "",
-  location: "",
-  maxApplications: 5,
-  reviewBeforeApply: true,
-  slowMoMs: 80,
-  browserProfileDir: ".playwright-seek-profile",
-  ai: {
-    mode: "hosted",
-    hostedModel: "budget",
-    byokProvider: "openrouter",
-    byokModel: "deepseek/deepseek-chat",
-    apiKey: ""
-  }
-};
 
 let mainWindow;
 let runningProcess = null;
@@ -149,11 +128,91 @@ app.on("before-quit", () => {
   if (loginProcess && !loginProcess.killed) loginProcess.kill();
 });
 
+// ---- Crash logging ----
+
+function logCrashToFile(error, type) {
+  try {
+    const crashDir = getUserDataPath();
+    const crashPath = path.join(crashDir, "crash-log.json");
+    let crashes = [];
+    if (fs.existsSync(crashPath)) {
+      crashes = JSON.parse(fs.readFileSync(crashPath, "utf8"));
+    }
+    crashes.push({
+      type,
+      error: error?.message || String(error),
+      stack: error?.stack || "",
+      platform: process.platform,
+      version: "1.0.0",
+      createdAt: new Date().toISOString()
+    });
+    if (crashes.length > 20) crashes = crashes.slice(-20);
+    fs.writeFileSync(crashPath, JSON.stringify(crashes, null, 2));
+  } catch { /* crash during crash logging — ignore */ }
+}
+
+async function flushCrashesToBackend() {
+  try {
+    const crashDir = getUserDataPath();
+    const crashPath = path.join(crashDir, "crash-log.json");
+    if (!fs.existsSync(crashPath)) return;
+
+    const configPath = path.join(crashDir, "config.json");
+    if (!fs.existsSync(configPath)) return;
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const ai = config.ai || {};
+    if (!ai.authToken) return;
+
+    const backendUrl = ai.backendUrl || "http://localhost:3000";
+    const crashes = JSON.parse(fs.readFileSync(crashPath, "utf8"));
+    if (!crashes.length) return;
+
+    const unsent = crashes.filter((c) => !c.sent);
+    for (const entry of unsent) {
+      try {
+        const res = await fetch(`${backendUrl}/crash/report`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${ai.authToken}`
+          },
+          body: JSON.stringify({
+            error: entry.error,
+            stack: entry.stack,
+            platform: entry.platform,
+            version: entry.version
+          })
+        });
+        if (res.ok) entry.sent = true;
+      } catch { /* backend unreachable, skip */ }
+    }
+    fs.writeFileSync(crashPath, JSON.stringify(crashes, null, 2));
+  } catch { /* silent */ }
+}
+
+process.on("uncaughtException", (error) => {
+  logCrashToFile(error, "uncaughtException");
+  console.error("[CRASH] Uncaught exception:", error);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    send("automation-log", `\n[CRASH] ${error.message}\n`);
+  }
+  flushCrashesToBackend().catch(() => {});
+});
+
+process.on("unhandledRejection", (reason) => {
+  logCrashToFile(reason, "unhandledRejection");
+  console.error("[CRASH] Unhandled rejection:", reason);
+});
+
 // ---- Config ----
 
 ipcMain.handle("save-config", async (_, config) => {
-  const merged = { ...DEFAULTS, ...config };
   const filePath = path.join(getUserDataPath(), "config.json");
+  let existing = {};
+  if (fs.existsSync(filePath)) {
+    existing = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  }
+  const merged = { ...DEFAULTS, ...existing, ...config };
   fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
   return { success: true };
 });
@@ -183,7 +242,28 @@ ipcMain.handle("start-automation", async () => {
     return { success: false, message: "Automation is already running." };
   }
 
-  const proc = spawnScript("src/seek-apply.js");
+  // Inject BYOK API key if configured
+  const extraEnv = {};
+  const configPath = path.join(getUserDataPath(), "config.json");
+  if (fs.existsSync(configPath)) {
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const ai = config.ai || {};
+    if (ai.mode === "byok") {
+      const ksPath = getKeyStorePath();
+      if (fs.existsSync(ksPath)) {
+        const encrypted = fs.readFileSync(ksPath, "utf8");
+        const decrypted = decryptKey(encrypted);
+        if (decrypted) {
+          try {
+            const store = JSON.parse(decrypted);
+            extraEnv.BYOK_API_KEY = store.key || "";
+          } catch { /* key corrupted, skip */ }
+        }
+      }
+    }
+  }
+
+  const proc = spawnScript("src/seek-apply.js", extraEnv);
   runningProcess = proc;
 
   proc.stdout.on("data", (data) => send("automation-log", data.toString()));
@@ -192,10 +272,12 @@ ipcMain.handle("start-automation", async () => {
   proc.on("close", (code) => {
     send("automation-log", `[INFO] Process exited with code ${code}\n`);
     send("automation-stopped");
+    send("automation-status", "idle");
     runningProcess = null;
     send("applied-jobs-updated");
   });
 
+  send("automation-status", "running");
   return { success: true };
 });
 
@@ -210,6 +292,11 @@ ipcMain.handle("stop-automation", async () => {
     }
   }, 3000);
   return { success: true };
+});
+
+ipcMain.handle("get-automation-status", async () => {
+  if (runningProcess && !runningProcess.killed) return "running";
+  return "idle";
 });
 
 // ---- Login ----
@@ -364,14 +451,7 @@ function encryptKey(plaintext) {
   if (safeStorage.isEncryptionAvailable()) {
     return safeStorage.encryptString(plaintext).toString("base64");
   }
-  const fallback = crypto.createCipheriv(
-    "aes-256-gcm",
-    crypto.scryptSync("seek-buddy-fallback-key-v1", "salt", 32),
-    Buffer.alloc(16, 0)
-  );
-  const encrypted = Buffer.concat([fallback.update(plaintext, "utf8"), fallback.final()]);
-  const tag = fallback.getAuthTag();
-  return Buffer.concat([tag, encrypted]).toString("base64");
+  return fallbackEncrypt(plaintext);
 }
 
 function decryptKey(encoded) {
@@ -382,19 +462,7 @@ function decryptKey(encoded) {
     } catch {
     }
   }
-  try {
-    const tag = buf.subarray(0, 16);
-    const data = buf.subarray(16);
-    const decipher = crypto.createDecipheriv(
-      "aes-256-gcm",
-      crypto.scryptSync("seek-buddy-fallback-key-v1", "salt", 32),
-      Buffer.alloc(16, 0)
-    );
-    decipher.setAuthTag(tag);
-    return decipher.update(data, "base64", "utf8") + decipher.final("utf8");
-  } catch {
-    return null;
-  }
+  return fallbackDecrypt(encoded);
 }
 
 ipcMain.handle("save-ai-config", async (_, aiConfig) => {
@@ -412,13 +480,16 @@ ipcMain.handle("save-ai-config", async (_, aiConfig) => {
 ipcMain.handle("load-ai-config", async () => {
   const filePath = path.join(getUserDataPath(), "config.json");
   if (!fs.existsSync(filePath)) {
-    return { mode: "hosted", hostedModel: "budget", byokProvider: "openrouter", byokModel: "deepseek/deepseek-chat" };
+    return { mode: "hosted", hostedModel: "budget", backendUrl: "http://localhost:3000", byokProvider: "openrouter", byokModel: "deepseek/deepseek-chat" };
   }
   const config = JSON.parse(fs.readFileSync(filePath, "utf8"));
   const ai = config.ai || {};
   return {
     mode: ai.mode || "hosted",
     hostedModel: ai.hostedModel || "budget",
+    backendUrl: ai.backendUrl || "http://localhost:3000",
+    authToken: ai.authToken || "",
+    userId: ai.userId || "",
     byokProvider: ai.byokProvider || "openrouter",
     byokModel: ai.byokModel || "deepseek/deepseek-chat"
   };
@@ -448,26 +519,58 @@ ipcMain.handle("delete-api-key", async () => {
   const ksPath = getKeyStorePath();
   if (fs.existsSync(ksPath)) fs.unlinkSync(ksPath);
   return { success: true };
-});
+});  ipcMain.handle("register-hosted", async (_, { email, backendUrl }) => {
+    try {
+      const res = await fetch(`${backendUrl || "http://localhost:3000"}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email || "user@seek-assistant.local" })
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        return { success: false, message: `Backend registration failed (${res.status}): ${text}` };
+      }
+      const data = await res.json();
+      return { success: true, userId: data.userId, token: data.token };
+    } catch (err) {
+      return { success: false, message: `Cannot reach backend: ${err.message}` };
+    }
+  });
 
-ipcMain.handle("test-ai-connection", async () => {
-  const ksPath = getKeyStorePath();
+  ipcMain.handle("test-ai-connection", async () => {
   const configPath = path.join(getUserDataPath(), "config.json");
-  if (!fs.existsSync(ksPath) || !fs.existsSync(configPath)) {
-    return { success: false, message: "AI not configured." };
+  if (!fs.existsSync(configPath)) {
+    return { success: false, message: "No config found. Please save settings first." };
+  }
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const ai = config.ai || {};
+
+  if (ai.mode === "hosted") {
+    const fullConfig = { ai };
+    try {
+      const { createAIClient } = await import("../src/ai/ai-client.js");
+      const client = createAIClient(fullConfig);
+      if (typeof client.testConnection === "function") {
+        return await client.testConnection();
+      }
+      return { success: false, message: "This provider does not support connection testing." };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  }
+
+  // BYOK mode — read encrypted key from keystore
+  const ksPath = getKeyStorePath();
+  if (!fs.existsSync(ksPath)) {
+    return { success: false, message: "No API key saved. Please save AI settings with a key first." };
   }
   const encrypted = fs.readFileSync(ksPath, "utf8");
   const decrypted = decryptKey(encrypted);
   if (!decrypted) return { success: false, message: "Could not decrypt API key." };
   let store;
   try { store = JSON.parse(decrypted); } catch { store = { provider: "", key: "" }; }
-  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-  const fullConfig = {
-    ai: {
-      ...config.ai,
-      apiKey: store.key
-    }
-  };
+
+  const fullConfig = { ai: { ...ai, apiKey: store.key } };
   try {
     const { createAIClient } = await import("../src/ai/ai-client.js");
     const client = createAIClient(fullConfig);
@@ -481,6 +584,42 @@ ipcMain.handle("test-ai-connection", async () => {
 });
 
 // ---- Misc ----
+
+ipcMain.handle("get-usage-stats", async () => {
+  const configPath = path.join(getUserDataPath(), "config.json");
+  if (!fs.existsSync(configPath)) return null;
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const ai = config.ai || {};
+  if (ai.mode !== "hosted" || !ai.authToken) return null;
+
+  try {
+    const backendUrl = ai.backendUrl || "http://localhost:3000";
+    const res = await fetch(`${backendUrl}/usage/me`, {
+      headers: { Authorization: `Bearer ${ai.authToken}` }
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+});
+
+ipcMain.handle("get-billing-plans", async () => {
+  const configPath = path.join(getUserDataPath(), "config.json");
+  if (!fs.existsSync(configPath)) return [];
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const ai = config.ai || {};
+  const backendUrl = ai.backendUrl || "http://localhost:3000";
+
+  try {
+    const res = await fetch(`${backendUrl}/billing/plans`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.plans || [];
+  } catch {
+    return [];
+  }
+});
 
 ipcMain.handle("get-app-version", async () => {
   try {

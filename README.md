@@ -1,94 +1,91 @@
-# SEEK Job Application Automation
+# SEEK Apply Assistant
 
-This project opens SEEK, searches for a job title/location, drafts a custom cover letter from the job ad, attaches your resume when possible, leaves prepared application tabs open, and pauses once at the end for review/submission.
+A cross-platform desktop app that helps users manage SEEK job applications with safe automation, AI-assisted cover letters, screening answers, job matching, and local application history.
 
-It intentionally does **not** click the final submit/apply button automatically. Job application forms vary, often include employer-specific questions, and you should review every application before sending it.
+The app is designed for non-technical users. Users should be able to install the app, log in, configure job preferences, connect SEEK manually, choose AI mode, review applications, start automation, and stop anytime.
 
-## Setup
+## Core Product Direction
 
-1. Install dependencies:
+This is not a spam bot.
+
+The app should act as a job application assistant that helps users:
+- Search and organise relevant jobs.
+- Score jobs against their resume and preferences.
+- Generate tailored cover letters.
+- Draft screening question answers.
+- Review before submitting.
+- Track applied jobs locally.
+- Stop automation at any time.
+
+## Supported Platforms
+
+- macOS
+- Windows
+- Linux
+
+## Installation
+
+### macOS
+
+1. Download the `.dmg` file from the latest release.
+2. Open the DMG and drag **Seek Apply Assistant** to your Applications folder.
+3. On first launch, macOS may show a security warning. Open **System Preferences > Security & Privacy** and click **Open Anyway**.
+4. The app will prompt you to install the Chromium browser engine (~150 MB). Click **Install Chromium**.
+
+### Windows
+
+1. Download the `.exe` installer from the latest release.
+2. Run the installer. Windows Defender may show a SmartScreen warning — click **More info > Run anyway**.
+3. Launch **Seek Apply Assistant** from the Start Menu.
+4. The app will prompt you to install the Chromium browser engine. Click **Install Chromium**.
+
+### Linux
+
+1. Download the `.AppImage` from the latest release.
+2. Make it executable: `chmod +x "Seek Apply Assistant-1.0.0.AppImage"`
+3. Run the AppImage. The app will prompt you to install Chromium on first run.
+
+## Building from Source
 
 ```bash
+git clone <repo-url>
+cd seekJobBuddy
 npm install
-```
-
-2. Install the Playwright browser:
-
-```bash
 npm run install:browsers
+npm run desktop        # Run in development
+npm run build:mac      # Build macOS DMG
+npm run build:win      # Build Windows installer
 ```
 
-If `npm run login` fails with `browserType.launchPersistentContext: Executable doesn't exist`,
-run `npm run install:browsers` again. This downloads the browser binary that matches the
-installed Playwright package.
+## Main Stack
 
-3. Edit your private `config.json` and set:
+Desktop:
+- Electron
+- Node.js
+- Playwright
+- HTML/CSS/JavaScript or React later
 
-- `jobTitle`
-- `location`
-- `resumePath` as an absolute path
-- `applicant`
-- `resumeSummary`
+Backend:
+- Node.js
+- Express
+- Supabase Auth
+- Supabase Postgres
+- AI provider router
+- Usage limits and billing-ready design
 
-`jobTitle` and `location` can each be comma-separated when you want to search multiple
-terms or places. For example, `"Frontend Developer, Software Engineer"` and
-`"Gold Coast, Brisbane QLD"` will run separate searches and merge the results.
+AI:
+- Hosted AI through backend
+- Bring Your Own Key mode
+- Cheap model defaults
+- OpenAI as optional premium fallback
 
-The default cover-letter tone is humanized, friendly, fun, and professional.
-You can tune it with `coverLetter.tone`.
+## Non-Negotiables
 
-Optional AI cover letters:
-
-Edit your private `.env` and set `OPENAI_API_KEY`. The `.env` file is ignored by Git.
-
-Then set:
-
-```json
-"openai": {
-  "enabled": true,
-  "model": "gpt-5-mini",
-  "timeoutMs": 60000
-}
-```
-
-You can change the model to any text-capable OpenAI model your account can use.
-The default is `gpt-5-mini`, a lower-cost model that is still strong for well-prompted cover letters.
-`timeoutMs` controls how long the script waits for OpenAI before falling back to the template cover letter.
-
-## Log In To SEEK
-
-Run this once:
-
-```bash
-npm run login
-```
-
-A browser will open. Log in to SEEK, then return to the terminal and press Enter. The session is saved in `.playwright-seek-profile`.
-
-## Run
-
-```bash
-npm run apply
-```
-
-To clear the handled/applied job history and start fresh:
-
-```bash
-npm run clear:applied
-```
-
-The script will:
-
-- Search SEEK for your configured job title/location combinations.
-- Select the first `maxApplications` job ads for each title/location search.
-- Click into the apply flow where possible.
-- Generate and save cover letters in `out/cover-letters` only after an apply page with a cover-letter field is available.
-- Attach your resume if a file upload is available.
-- Fill a cover-letter field if one is present.
-- Leave prepared application tabs open and pause once after the batch so you can review/submit manually.
-
-## Safety Notes
-
-- Do not use this to bypass CAPTCHA, bot checks, paywalls, or site restrictions.
-- Review each application before submitting.
-- Some SEEK listings redirect to employer websites. The script will stop and let you handle those manually when it cannot confidently fill the form.
+- Never bundle the app owner’s API key in the desktop app.
+- Never bypass CAPTCHA, 2FA, paywalls, bot detection, or security mechanisms.
+- Never apply to unlimited jobs.
+- Always provide a user-controlled stop button.
+- Default to review-before-submit.
+- Store sensitive keys in OS keychain where possible.
+- Keep user credentials and resumes local unless the user explicitly uses hosted AI.
+- Be transparent when AI sends resume/job data to the backend.

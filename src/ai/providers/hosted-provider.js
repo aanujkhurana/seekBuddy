@@ -1,6 +1,6 @@
 export function createHostedProvider(config) {
-  const base = config.backendUrl || "http://localhost:3000";
-  const token = config.authToken || "";
+  const base = config.backendUrl || config.ai?.backendUrl || "http://localhost:3000";
+  const token = config.authToken || config.ai?.authToken || "";
 
   async function call(endpoint, payload) {
     const res = await fetch(`${base}${endpoint}`, {
@@ -30,6 +30,19 @@ export function createHostedProvider(config) {
     },
     generateText({ system, prompt, maxTokens }) {
       return call("/ai/generate", { system, prompt, maxTokens });
+    },
+    matchJob(payload) {
+      return call("/ai/job-match", payload);
+    },
+    detectRedFlags(payload) {
+      return call("/ai/red-flags", payload);
+    },
+    summarizeJob(payload) {
+      return call("/ai/summarize", payload);
+    },
+    async testConnection() {
+      const res = await call("/ai/test", {});
+      return { success: res.success || false, message: res.message || "" };
     }
   };
 }
