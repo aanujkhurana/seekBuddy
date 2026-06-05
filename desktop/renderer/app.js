@@ -274,7 +274,7 @@ async function loadConfig() {
   const savedCoverLetter = config.coverLetter || {};
   coverLetterTones = Array.isArray(savedCoverLetter.tones)
     ? savedCoverLetter.tones.filter(Boolean)
-    : splitSearchValues(savedCoverLetter.tone || "professional");
+    : splitSearchValues(savedCoverLetter.tone);
   if (!coverLetterTones.length) coverLetterTones = ["professional", "direct", "confident", "tailored"];
   coverLetterTones = enforceToneLimit(coverLetterTones);
   renderSearchLists();
