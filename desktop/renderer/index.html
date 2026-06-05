@@ -20,18 +20,28 @@
         <button id="openLogin">Open SEEK Login</button>
         <button id="logoutLogin" class="danger" style="display:none">Logout</button>
       </div>
-      <p class="hint">SEEK opens in a visible browser. Choose the email login option and sign in there; the app unlocks automatically after the session is validated.</p>
-      <p id="loginStatus" class="hint">Sign in manually before configuring applications. Your SEEK browser session is stored locally and can survive app restarts until SEEK expires it.</p>
+      <p class="hint login-help">SEEK opens in a visible browser. Choose the email login option and sign in there; the app unlocks automatically after the session is validated.</p>
+      <p id="loginStatus" class="hint login-help">Sign in manually before configuring applications. Your SEEK browser session is stored locally and can survive app restarts until SEEK expires it.</p>
     </section>
 
     <section class="card" data-login-required>
       <h2>Job Search Settings</h2>
 
-      <label>Keywords</label>
-      <input id="keywords" placeholder="frontend developer, react, vue" />
+      <label for="jobTitleInput">JOB TITLE</label>
+      <div class="add-row">
+        <input id="jobTitleInput" placeholder="Frontend developer" />
+        <button id="addJobTitle" class="icon-btn" aria-label="Add job title" title="Add job title">+</button>
+      </div>
+      <div id="jobTitleList" class="chip-list"></div>
+      <p class="hint">Add multiple job titles to search each title separately, for example Frontend Developer and React Developer.</p>
 
-      <label>Location</label>
-      <input id="location" placeholder="Brisbane, Gold Coast, Remote" />
+      <label for="searchLocationInput">LOCATION</label>
+      <div class="add-row">
+        <input id="searchLocationInput" placeholder="Brisbane" />
+        <button id="addLocation" class="icon-btn" aria-label="Add location" title="Add location">+</button>
+      </div>
+      <div id="locationList" class="chip-list"></div>
+      <p class="hint">Add multiple locations to search every job title in every location. Use Remote as a location if needed.</p>
 
       <label>Maximum applications per run</label>
       <input id="maxApplications" type="number" value="10" />
@@ -45,11 +55,18 @@
     <section class="card" data-login-required>
       <h2>Documents</h2>
 
+      <h3 class="subheading">Resume</h3>
       <button id="selectResume">Choose Resume</button>
       <p id="resumePath">No resume selected</p>
 
+      <div class="divider"></div>
+
+      <h3 class="subheading">Cover Letter</h3>
       <button id="selectCoverLetter">Choose Cover Letter</button>
       <p id="coverLetterPath">No cover letter selected</p>
+      <p class="hint">This cover letter is used as a reference. AI will write a tailored cover letter when available and fall back to this file if AI cannot connect.</p>
+
+      <div class="divider"></div>
 
       <label for="resumeSummary">Resume Summary — paste key experience points for AI context</label>
       <textarea id="resumeSummary" rows="4" placeholder="e.g. 5 years React & TypeScript at two startups. Built design systems from scratch. Led a team of 3 frontend devs. Strong UX instincts."></textarea>

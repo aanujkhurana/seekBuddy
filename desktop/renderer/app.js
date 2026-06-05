@@ -2,8 +2,13 @@ const openLoginBtn = document.getElementById("openLogin");
 const logoutLoginBtn = document.getElementById("logoutLogin");
 const loginStatus = document.getElementById("loginStatus");
 const loginStateBadge = document.getElementById("loginStateBadge");
-const keywordsInput = document.getElementById("keywords");
-const locationInput = document.getElementById("location");
+const loginHelp = Array.from(document.querySelectorAll(".login-help"));
+const jobTitleInput = document.getElementById("jobTitleInput");
+const addJobTitleBtn = document.getElementById("addJobTitle");
+const jobTitleList = document.getElementById("jobTitleList");
+const searchLocationInput = document.getElementById("searchLocationInput");
+const addLocationBtn = document.getElementById("addLocation");
+const locationList = document.getElementById("locationList");
 const maxApplicationsInput = document.getElementById("maxApplications");
 const reviewBeforeApplyInput = document.getElementById("reviewBeforeApply");
 
@@ -39,6 +44,8 @@ let automationRunning = false;
 let hostedRegistered = false;
 let loginValidated = false;
 let loginInProgress = false;
+let jobTitles = [];
+let searchLocations = [];
 
 function setLoginState({ validated, inProgress = false, failed = false, message }) {
   loginValidated = validated;
@@ -50,7 +57,80 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
   openLoginBtn.textContent = failed ? "Reopen SEEK Login" : "Open SEEK Login";
   loginStateBadge.className = "session-badge " + (loginValidated ? "logged-in" : inProgress ? "checking" : "logged-out");
   loginStateBadge.textContent = loginValidated ? "Logged in" : inProgress ? "Checking login..." : "Not logged in";
+  loginHelp.forEach((element) => {
+    element.style.display = loginValidated ? "none" : "";
+  });
   if (message) loginStatus.textContent = message;
+}
+
+function splitSearchValues(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function addUniqueValue(list, value) {
+  const normalized = value.trim();
+  if (!normalized) return list;
+  const exists = list.some((item) => item.toLowerCase() === normalized.toLowerCase());
+  return exists ? list : [...list, normalized];
+}
+
+function renderChipList({ values, container, onRemove }) {
+  container.innerHTML = "";
+  values.forEach((value, index) => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+
+    const text = document.createElement("span");
+    text.textContent = value;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "chip-remove";
+    remove.setAttribute("aria-label", `Remove ${value}`);
+    remove.textContent = "x";
+    remove.addEventListener("click", () => onRemove(index));
+
+    chip.appendChild(text);
+    chip.appendChild(remove);
+    container.appendChild(chip);
+  });
+}
+
+function renderSearchLists() {
+  renderChipList({
+    values: jobTitles,
+    container: jobTitleList,
+    onRemove: (index) => {
+      jobTitles = jobTitles.filter((_, itemIndex) => itemIndex !== index);
+      renderSearchLists();
+    }
+  });
+
+  renderChipList({
+    values: searchLocations,
+    container: locationList,
+    onRemove: (index) => {
+      searchLocations = searchLocations.filter((_, itemIndex) => itemIndex !== index);
+      renderSearchLists();
+    }
+  });
+}
+
+function addJobTitle() {
+  jobTitles = addUniqueValue(jobTitles, jobTitleInput.value);
+  jobTitleInput.value = "";
+  renderSearchLists();
+  jobTitleInput.focus();
+}
+
+function addSearchLocation() {
+  searchLocations = addUniqueValue(searchLocations, searchLocationInput.value);
+  searchLocationInput.value = "";
+  renderSearchLists();
+  searchLocationInput.focus();
 }
 
 function setStatus(state) {
@@ -63,11 +143,14 @@ function setStatus(state) {
 }
 
 function getConfig() {
+  const titlesForConfig = addUniqueValue(jobTitles, jobTitleInput.value);
+  const locationsForConfig = addUniqueValue(searchLocations, searchLocationInput.value);
+
   return {
     email: "",
     password: "",
-    keywords: keywordsInput.value.trim(),
-    location: locationInput.value.trim(),
+    keywords: titlesForConfig.join(", "),
+    location: locationsForConfig.join(", "),
     maxApplications: Number(maxApplicationsInput.value) || 10,
     reviewBeforeApply: reviewBeforeApplyInput.checked,
     resumePath,
@@ -85,8 +168,9 @@ async function loadConfig() {
   const config = await window.seekApp.loadConfig();
   if (!config) return;
 
-  keywordsInput.value = config.keywords || "";
-  locationInput.value = config.location || "";
+  jobTitles = splitSearchValues(config.keywords);
+  searchLocations = splitSearchValues(config.location);
+  renderSearchLists();
   maxApplicationsInput.value = config.maxApplications || 10;
   reviewBeforeApplyInput.checked = Boolean(config.reviewBeforeApply);
 
@@ -252,6 +336,22 @@ document.getElementById("selectCoverLetter").addEventListener("click", async () 
 document.getElementById("saveConfig").addEventListener("click", async () => {
   await window.seekApp.saveConfig(getConfig());
   appendLog("Config saved.");
+});
+
+addJobTitleBtn.addEventListener("click", addJobTitle);
+jobTitleInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addJobTitle();
+  }
+});
+
+addLocationBtn.addEventListener("click", addSearchLocation);
+searchLocationInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addSearchLocation();
+  }
 });
 
 openLoginBtn.addEventListener("click", async () => {

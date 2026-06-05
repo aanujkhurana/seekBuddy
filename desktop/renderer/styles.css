@@ -84,6 +84,18 @@ body {
   margin: 0 0 16px;
 }
 
+.subheading {
+  font-size: 14px;
+  margin: 18px 0 10px;
+  color: var(--text);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 18px 0;
+}
+
 label {
   display: block;
   margin: 14px 0 8px;
@@ -103,6 +115,59 @@ input {
 
 input:focus {
   border-color: var(--primary);
+}
+
+.add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 46px;
+  gap: 8px;
+  align-items: center;
+}
+
+.icon-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  padding: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 32px;
+  margin-top: 10px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--text);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 999px;
+  padding: 6px 8px 6px 12px;
+  font-size: 13px;
+}
+
+.chip span {
+  overflow-wrap: anywhere;
+}
+
+.chip-remove {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--muted);
 }
 
 textarea {
