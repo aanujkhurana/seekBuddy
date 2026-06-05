@@ -83,7 +83,9 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
   });
   loginStateBadges.forEach((badge) => {
     badge.className = "session-badge " + (loginValidated ? "logged-in" : inProgress ? "checking" : "logged-out");
-    badge.textContent = loginValidated ? "SEEK logged in" : inProgress ? "Checking SEEK..." : "Not logged in";
+    badge.innerHTML = loginValidated
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:14px;height:14px;margin-right:5px"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>SEEK logged in'
+      : (inProgress ? "Checking SEEK..." : "Not logged in");
   });
   loginHelp.forEach((element) => {
     element.style.display = loginValidated ? "none" : "";
