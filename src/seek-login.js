@@ -67,7 +67,7 @@ try {
   };
 }
 
-await context.close().catch(() => {});
+await closeBrowserContext(context);
 
 if (validation.success) {
   console.log("SEEK browser session validated and saved.");
@@ -130,7 +130,7 @@ async function waitForValidatedSession(page, context, config) {
 }
 
 async function validateSavedSessionAfterWindowClose(currentContext, config) {
-  await currentContext.close().catch(() => {});
+  await closeBrowserContext(currentContext);
 
   const checkContext = await chromium.launchPersistentContext(config.browserProfileDir, {
     headless: true,
@@ -147,8 +147,14 @@ async function validateSavedSessionAfterWindowClose(currentContext, config) {
       message: "SEEK login window closed before the app could validate sign-in. Reopen SEEK Login and try again."
     };
   } finally {
-    await checkContext.close().catch(() => {});
+    await closeBrowserContext(checkContext);
   }
+}
+
+async function closeBrowserContext(contextToClose) {
+  const pages = contextToClose.pages?.() || [];
+  await Promise.all(pages.map((openPage) => openPage.close().catch(() => {})));
+  await contextToClose.close().catch(() => {});
 }
 
 async function waitForDelayOrBrowserClose(page, context, delayMs) {

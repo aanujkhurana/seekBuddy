@@ -1,6 +1,7 @@
 const openLoginBtn = document.getElementById("openLogin");
 const logoutLoginBtn = document.getElementById("logoutLogin");
 const loginStatus = document.getElementById("loginStatus");
+const loginStateBadge = document.getElementById("loginStateBadge");
 const keywordsInput = document.getElementById("keywords");
 const locationInput = document.getElementById("location");
 const maxApplicationsInput = document.getElementById("maxApplications");
@@ -47,6 +48,8 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
   logoutLoginBtn.style.display = loginValidated ? "" : "none";
   openLoginBtn.disabled = inProgress;
   openLoginBtn.textContent = failed ? "Reopen SEEK Login" : "Open SEEK Login";
+  loginStateBadge.className = "session-badge " + (loginValidated ? "logged-in" : inProgress ? "checking" : "logged-out");
+  loginStateBadge.textContent = loginValidated ? "Logged in" : inProgress ? "Checking login..." : "Not logged in";
   if (message) loginStatus.textContent = message;
 }
 
@@ -385,6 +388,14 @@ window.seekApp.onLoginStatus((status) => {
       inProgress: false,
       failed: true,
       message: message || "SEEK login could not be validated. Reopen SEEK and sign in with email again."
+    });
+  }
+
+  if (state === "logged_out") {
+    setLoginState({
+      validated: false,
+      inProgress: false,
+      message: message || "Logged out. Open SEEK Login to sign in again."
     });
   }
 });

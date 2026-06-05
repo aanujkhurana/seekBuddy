@@ -355,7 +355,7 @@ function clearSavedBrowserProfile() {
     path.resolve(getUserDataPath())
   ];
   const isAllowed = allowedRoots.some((root) =>
-    profileDir === root || profileDir.startsWith(`${root}${path.sep}`)
+    profileDir.startsWith(`${root}${path.sep}`)
   );
 
   if (!isAllowed) {
@@ -445,7 +445,7 @@ ipcMain.handle("logout-login-session", async () => {
   clearLoginSessionMarker();
   const result = clearSavedBrowserProfile();
   send("login-status", {
-    state: "failed",
+    state: "logged_out",
     message: result.message
   });
   return { success: true, message: result.message };
