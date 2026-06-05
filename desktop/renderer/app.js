@@ -136,9 +136,59 @@ function addUniqueValue(list, value) {
 
 const MAX_TONES = 5;
 
+const PROVIDER_MODELS = {
+  openrouter: [
+    { value: "deepseek/deepseek-chat", label: "DeepSeek Chat" },
+    { value: "openai/gpt-4o", label: "OpenAI GPT-4o" },
+    { value: "openai/gpt-4o-mini", label: "OpenAI GPT-4o Mini" },
+    { value: "anthropic/claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
+    { value: "google/gemini-2.0-flash-001", label: "Gemini 2.0 Flash" },
+    { value: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B" },
+    { value: "deepseek/deepseek-r1", label: "DeepSeek R1" },
+    { value: "mistral/mistral-large", label: "Mistral Large" },
+  ],
+  openai: [
+    { value: "gpt-4o", label: "GPT-4o" },
+    { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+    { value: "o3-mini", label: "o3 Mini" },
+    { value: "gpt-4.1", label: "GPT-4.1" },
+    { value: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
+    { value: "gpt-4.1-nano", label: "GPT-4.1 Nano" },
+  ],
+  gemini: [
+    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+    { value: "gemini-2.5-pro-exp-03-25", label: "Gemini 2.5 Pro" },
+    { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+    { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+  ],
+  deepseek: [
+    { value: "deepseek-chat", label: "DeepSeek Chat" },
+    { value: "deepseek-reasoner", label: "DeepSeek Reasoner" },
+  ],
+  minimax: [
+    { value: "minimax-text-01", label: "MiniMax Text-01" },
+  ],
+};
+
 function enforceToneLimit(list) {
   if (list.length <= MAX_TONES) return list;
   return list.slice(list.length - MAX_TONES);
+}
+
+function populateModelSelect(provider) {
+  const models = PROVIDER_MODELS[provider] || [];
+  const current = byokModelInput.value;
+  byokModelInput.innerHTML = '<option value="">Select a model</option>';
+  models.forEach((m) => {
+    const opt = document.createElement("option");
+    opt.value = m.value;
+    opt.textContent = m.label;
+    byokModelInput.appendChild(opt);
+  });
+  if ([...byokModelInput.options].some((o) => o.value === current)) {
+    byokModelInput.value = current;
+  }
+  updateAIConfiguredState();
 }
 
 function renderChipList({ values, container, onRemove }) {
@@ -317,7 +367,8 @@ async function loadAIConfig() {
   hostedModelSelect.value = aiCfg.hostedModel || "budget";
   backendUrlInput.value = aiCfg.backendUrl || "http://localhost:3000";
   byokProviderSelect.value = aiCfg.byokProvider || "openrouter";
-  byokModelInput.value = aiCfg.byokModel || "deepseek/deepseek-chat";
+  populateModelSelect(byokProviderSelect.value);
+  byokModelInput.value = aiCfg.byokModel && [...byokModelInput.options].some(o => o.value === aiCfg.byokModel) ? aiCfg.byokModel : byokModelInput.value;
 
   const stored = await window.seekApp.loadApiKey();
   if (stored && stored.key) {
@@ -340,7 +391,7 @@ function isAIConfigured() {
   if (aiModeSelect.value === "hosted") {
     return hostedRegistered;
   }
-  return Boolean(apiKeyInput.value.trim() && byokModelInput.value.trim());
+  return Boolean(apiKeyInput.value.trim() && byokModelInput.value);
 }
 
 function updateAIConfiguredState() {
@@ -398,7 +449,7 @@ function getAIConfig() {
     hostedModel: hostedModelSelect.value,
     backendUrl: backendUrlInput.value.trim() || "http://localhost:3000",
     byokProvider: byokProviderSelect.value,
-    byokModel: byokModelInput.value.trim()
+    byokModel: byokModelInput.value
   };
 }
 
@@ -725,7 +776,10 @@ exportJobsBtn.addEventListener("click", async () => {
 
 aiModeSelect.addEventListener("change", toggleByokVisibility);
 backendUrlInput.addEventListener("input", updateAIConfiguredState);
-byokModelInput.addEventListener("input", updateAIConfiguredState);
+byokModelInput.addEventListener("change", updateAIConfiguredState);
+byokProviderSelect.addEventListener("change", () => {
+  populateModelSelect(byokProviderSelect.value);
+});
 apiKeyInput.addEventListener("input", updateAIConfiguredState);
 
 toggleKeyBtn.addEventListener("click", () => {
