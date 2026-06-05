@@ -10,7 +10,7 @@
     <section class="hero">
       <div class="hero-row">
         <div>
-          <h1>Seek Apply Assistant</h1>
+          <h1><span class="heading-icon" data-icon="briefcase"></span>Seek Apply Assistant</h1>
           <p>Configure your job search, run the assistant, and stop anytime.</p>
         </div>
         <div class="header-actions">
@@ -24,7 +24,7 @@
     </section>
 
     <section class="card" id="loginCard" data-main-page>
-      <h2>SEEK LOGIN</h2>
+      <h2><span class="heading-icon" data-icon="login"></span>SEEK LOGIN</h2>
       <div class="session-badge logged-out" data-login-badge>Not logged in</div>
 
       <div class="actions">
@@ -36,7 +36,7 @@
     </section>
 
     <section class="card" data-login-required data-main-page>
-      <h2>Job Search Settings</h2>
+      <h2><span class="heading-icon" data-icon="sliders"></span>Job Search Settings</h2>
 
       <label for="jobTitleInput">JOB TITLE</label>
       <div class="add-row">
@@ -68,15 +68,15 @@
     </section>
 
     <section class="card" data-login-required data-main-page>
-      <h2>Documents</h2>
+      <h2><span class="heading-icon" data-icon="folder"></span>Documents</h2>
 
-      <h3 class="subheading">Resume</h3>
+      <h3 class="subheading"><span class="heading-icon" data-icon="fileText"></span>Resume</h3>
       <button id="selectResume">Choose Resume</button>
       <p id="resumePath">No resume selected</p>
 
       <div class="divider"></div>
 
-      <h3 class="subheading">Cover Letter</h3>
+      <h3 class="subheading"><span class="heading-icon" data-icon="mail"></span>Cover Letter</h3>
       <button id="selectCoverLetter">Choose Cover Letter</button>
       <p id="coverLetterPath">No cover letter selected</p>
       <p class="hint">This cover letter is used as a reference. AI will write a tailored cover letter when available and fall back to this file if AI cannot connect.</p>
@@ -114,7 +114,7 @@
 
     <section class="card" id="appliedSection" data-login-required data-main-page>
       <div class="card-title-row">
-        <h2>Applied Jobs</h2>
+        <h2><span class="heading-icon" data-icon="checkCircle"></span>Applied Jobs</h2>
         <div class="title-actions">
           <button id="clearApplied" class="btn-sm danger" disabled>Clear History</button>
           <button id="exportJobs" class="btn-sm" disabled>Export</button>
@@ -128,11 +128,11 @@
     <section id="settingsPage" class="settings-page" data-login-required>
       <div class="settings-header">
         <button id="settingsBack" class="btn-sm">Back</button>
-        <h2>Settings</h2>
+        <h2><span class="heading-icon" data-icon="gear"></span>Settings</h2>
       </div>
 
       <section class="card">
-        <h2>SEEK LOGIN</h2>
+        <h2><span class="heading-icon" data-icon="login"></span>SEEK LOGIN</h2>
         <div class="session-badge logged-out" data-login-badge>Not logged in</div>
 
         <div class="actions">
@@ -145,7 +145,7 @@
 
       <section class="card" id="aiSettingsCard">
         <div class="card-title-row">
-          <h2>AI Settings</h2>
+          <h2><span class="heading-icon" data-icon="sparkles"></span>AI Settings</h2>
           <span id="aiSettingsState" class="settings-state warn">Needs setup</span>
         </div>
         <div id="aiSettingsAlert" class="alert-note">
@@ -174,7 +174,7 @@
 
         <div class="divider"></div>
 
-        <h3 class="subheading">Cover Letter</h3>
+      <h3 class="subheading"><span class="heading-icon" data-icon="mail"></span>Cover Letter</h3>
         <label for="coverLetterWordLimit">Word limit</label>
         <input id="coverLetterWordLimit" type="number" min="120" max="500" value="280" />
         <p class="hint">Default is 280 words. Maximum is 500 words.</p>
@@ -217,7 +217,7 @@
       </section>
 
       <section class="card" id="usageSection">
-        <h2>Usage</h2>
+        <h2><span class="heading-icon" data-icon="chart"></span>Usage</h2>
         <div id="usageContent">
           <p class="hint">Connect to hosted AI to view usage stats.</p>
         </div>
@@ -225,6 +225,7 @@
     </section>
   </main>
 
+  <script src="./icons.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
