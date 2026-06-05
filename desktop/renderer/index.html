@@ -83,26 +83,32 @@
     </section>
 
     <section class="card controls-logs-card" data-login-required data-main-page>
+      <div class="actions">
+        <button id="start" class="primary">Start</button>
+        <button id="stop" class="danger" style="display:none">Stop</button>
+        <button id="continueBtn" class="continue" style="display:none">Continue</button>
+      </div>
       <div class="status-row">
         <span id="statusIndicator" class="status-dot idle"></span>
         <span id="statusLabel">Idle</span>
       </div>
-      <div class="actions">
-        <button id="saveConfig">Save Config</button>
-        <button id="start" class="primary">Start</button>
-        <button id="stop" class="danger">Stop</button>
-        <button id="continueBtn" class="continue">Continue</button>
-        <button id="clearApplied">Clear Applied History</button>
+      <div class="log-panel">
+        <pre id="logs"></pre>
+        <p id="logsEmpty" class="logs-empty">No logs yet. Run to see logs.</p>
       </div>
-      <pre id="logs"></pre>
     </section>
 
     <section class="card" id="appliedSection" data-login-required data-main-page>
-      <h2>Applied Jobs</h2>
+      <div class="card-title-row">
+        <h2>Applied Jobs</h2>
+        <div class="title-actions">
+          <button id="clearApplied" class="btn-sm danger" disabled>Clear History</button>
+          <button id="exportJobs" class="btn-sm" disabled>Export</button>
+        </div>
+      </div>
       <div id="appliedList" class="applied-list">
         <p class="hint">No jobs applied yet.</p>
       </div>
-      <button id="exportJobs" class="btn-sm" style="margin-top:12px">Export</button>
     </section>
 
     <section id="settingsPage" class="settings-page" data-login-required>

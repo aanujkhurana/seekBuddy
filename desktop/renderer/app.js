@@ -18,6 +18,7 @@ const resumePathText = document.getElementById("resumePath");
 const coverLetterPathText = document.getElementById("coverLetterPath");
 const resumeSummaryInput = document.getElementById("resumeSummary");
 const logs = document.getElementById("logs");
+const logsEmpty = document.getElementById("logsEmpty");
 
 const aiModeSelect = document.getElementById("aiMode");
 const hostedSettings = document.getElementById("hostedSettings");
@@ -38,6 +39,8 @@ const startBtn = document.getElementById("start");
 const stopBtn = document.getElementById("stop");
 const continueBtn = document.getElementById("continueBtn");
 const appliedList = document.getElementById("appliedList");
+const clearAppliedBtn = document.getElementById("clearApplied");
+const exportJobsBtn = document.getElementById("exportJobs");
 
 let resumePath = "";
 let coverLetterPath = "";
@@ -48,6 +51,7 @@ let loginValidated = false;
 let loginInProgress = false;
 let jobTitles = [];
 let searchLocations = [];
+let hasAppliedJobs = false;
 
 function setLoginState({ validated, inProgress = false, failed = false, message }) {
   loginValidated = validated;
@@ -161,9 +165,16 @@ function setStatus(state) {
   automationRunning = state === "running";
   statusIndicator.className = "status-dot " + state;
   statusLabel.textContent = state === "running" ? "Running" : state === "stopped" ? "Stopping" : "Idle";
+  startBtn.style.display = automationRunning ? "none" : "";
+  stopBtn.style.display = automationRunning ? "" : "none";
+  continueBtn.style.display = automationRunning ? "" : "none";
   startBtn.disabled = automationRunning;
   stopBtn.disabled = !automationRunning;
-  continueBtn.disabled = state === "idle";
+  continueBtn.disabled = !automationRunning;
+}
+
+function updateLogsEmptyState() {
+  logsEmpty.style.display = logs.textContent.trim() ? "none" : "";
 }
 
 function getConfig() {
@@ -184,7 +195,8 @@ function getConfig() {
 }
 
 function appendLog(message) {
-  logs.textContent += `\n${message}`;
+  logs.textContent = logs.textContent ? `${logs.textContent}\n${message}` : message;
+  updateLogsEmptyState();
   logs.scrollTop = logs.scrollHeight;
 }
 
@@ -289,8 +301,11 @@ async function loadAppliedJobs() {
 
 function renderAppliedJobs(jobs) {
   appliedList.innerHTML = "";
+  hasAppliedJobs = Boolean(jobs && jobs.length);
+  clearAppliedBtn.disabled = !hasAppliedJobs;
+  exportJobsBtn.disabled = !hasAppliedJobs;
 
-  if (!jobs || !jobs.length) {
+  if (!hasAppliedJobs) {
     appliedList.innerHTML = '<p class="hint">No jobs applied yet.</p>';
     return;
   }
@@ -357,11 +372,6 @@ document.getElementById("selectCoverLetter").addEventListener("click", async () 
   }
 });
 
-document.getElementById("saveConfig").addEventListener("click", async () => {
-  await window.seekApp.saveConfig(getConfig());
-  appendLog("Config saved.");
-});
-
 addJobTitleBtn.addEventListener("click", addJobTitle);
 jobTitleInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
@@ -421,6 +431,7 @@ logoutLoginBtns.forEach((button) => {
 document.getElementById("start").addEventListener("click", async () => {
   await window.seekApp.saveConfig(getConfig());
   logs.textContent = "";
+  updateLogsEmptyState();
   appendLog("Starting automation...");
   const result = await window.seekApp.startAutomation();
   if (!result.success) appendLog(result.message);
@@ -445,13 +456,19 @@ document.getElementById("continueBtn").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("clearApplied").addEventListener("click", async () => {
+clearAppliedBtn.addEventListener("click", async () => {
+  if (!hasAppliedJobs) return;
+  const confirmed = window.confirm(
+    "Clear applied job history?\n\nJobs in this history may reopen or be processed again if the history is cleared."
+  );
+  if (!confirmed) return;
+
   const result = await window.seekApp.clearApplied();
   appendLog(result.output || "Applied history cleared.");
   await loadAppliedJobs();
 });
 
-document.getElementById("exportJobs").addEventListener("click", async () => {
+exportJobsBtn.addEventListener("click", async () => {
   const result = await window.seekApp.exportJobs();
   if (result.success) {
     appendLog(`Exported applied jobs to ${result.path}`);
@@ -500,6 +517,10 @@ window.seekApp.onAppliedJobsUpdated(() => {
 
 window.seekApp.onStatusChange((status) => {
   setStatus(status);
+});
+
+window.addEventListener("beforeunload", () => {
+  window.seekApp.saveConfigOnClose(getConfig());
 });
 
 window.seekApp.onLoginStatus((status) => {
@@ -590,6 +611,7 @@ async function loadUsageDashboard() {
 // ---- Init ----
 
 async function init() {
+  updateLogsEmptyState();
   const status = await window.seekApp.getAutomationStatus();
   setStatus(status);
   await Promise.all([loadConfig(), loadAIConfig(), loadAppliedJobs()]);

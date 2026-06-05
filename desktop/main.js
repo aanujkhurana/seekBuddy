@@ -207,7 +207,7 @@ process.on("unhandledRejection", (reason) => {
 
 // ---- Config ----
 
-ipcMain.handle("save-config", async (_, config) => {
+function saveConfig(config) {
   const filePath = path.join(getUserDataPath(), "config.json");
   let existing = {};
   if (fs.existsSync(filePath)) {
@@ -215,7 +215,15 @@ ipcMain.handle("save-config", async (_, config) => {
   }
   const merged = { ...DEFAULTS, ...existing, ...config };
   fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
+}
+
+ipcMain.handle("save-config", async (_, config) => {
+  saveConfig(config);
   return { success: true };
+});
+
+ipcMain.on("save-config-on-close", (_, config) => {
+  saveConfig(config);
 });
 
 ipcMain.handle("load-config", async () => {

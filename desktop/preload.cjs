@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("seekApp", {
   loadConfig: () => ipcRenderer.invoke("load-config"),
   saveConfig: (config) => ipcRenderer.invoke("save-config", config),
+  saveConfigOnClose: (config) => ipcRenderer.send("save-config-on-close", config),
   selectFile: (options) => ipcRenderer.invoke("select-file", options),
 
   startAutomation: () => ipcRenderer.invoke("start-automation"),

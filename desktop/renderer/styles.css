@@ -122,6 +122,25 @@ body {
   margin: 0 0 16px;
 }
 
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.card-title-row h2 {
+  margin: 0;
+}
+
+.title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .subheading {
   font-size: 14px;
   margin: 18px 0 10px;
@@ -285,6 +304,10 @@ button.danger {
   color: var(--danger);
 }
 
+.log-panel {
+  position: relative;
+}
+
 pre {
   min-height: 180px;
   max-height: 300px;
@@ -296,8 +319,29 @@ pre {
   white-space: pre-wrap;
 }
 
+.controls-logs-card .actions {
+  margin: 0 0 10px;
+}
+
 .controls-logs-card pre {
   margin-top: 14px;
+}
+
+.controls-logs-card #start {
+  min-width: 260px;
+}
+
+.logs-empty {
+  position: absolute;
+  inset: 30px 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  pointer-events: none;
+  text-align: center;
 }
 
 select {
@@ -349,7 +393,9 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .status-dot {
