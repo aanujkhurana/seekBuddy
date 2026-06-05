@@ -223,6 +223,25 @@ function setStatus(state) {
   startBtn.disabled = automationRunning;
   stopBtn.disabled = !automationRunning;
   continueBtn.disabled = !automationRunning;
+
+  if (automationRunning) {
+    closeSettings();
+    document.querySelectorAll("input, textarea, select, button").forEach(el => {
+      if (el === startBtn || el === stopBtn || el === continueBtn) return;
+      if (el.disabled) el.dataset.wasDisabled = "1";
+      el.disabled = true;
+    });
+  } else {
+    document.querySelectorAll("input, textarea, select, button").forEach(el => {
+      if (el === startBtn || el === stopBtn || el === continueBtn) return;
+      if (el.dataset.wasDisabled === "1") {
+        delete el.dataset.wasDisabled;
+      } else {
+        el.disabled = false;
+      }
+    });
+    updateResumeGenerationState();
+  }
 }
 
 function updateLogsEmptyState() {
