@@ -101,10 +101,7 @@ async function waitForValidatedSession(page, context, config) {
 
   while (Date.now() - startedAt < DESKTOP_LOGIN_TIMEOUT_MS) {
     if (typeof page.isClosed === "function" && page.isClosed()) {
-      return {
-        success: false,
-        message: "SEEK login window was closed before sign-in completed."
-      };
+      return validateSavedSessionAfterWindowClose(context, config);
     }
 
     const validation = await validateSeekSession(page, config, { navigate: false });
@@ -122,10 +119,7 @@ async function waitForValidatedSession(page, context, config) {
 
     const stillOpen = await waitForDelayOrBrowserClose(page, context, 2000);
     if (!stillOpen) {
-      return {
-        success: false,
-        message: "SEEK login window was closed before sign-in completed."
-      };
+      return validateSavedSessionAfterWindowClose(context, config);
     }
   }
 
@@ -133,6 +127,28 @@ async function waitForValidatedSession(page, context, config) {
     success: false,
     message: "SEEK login timed out before sign-in completed. Reopen SEEK login and try again."
   };
+}
+
+async function validateSavedSessionAfterWindowClose(currentContext, config) {
+  await currentContext.close().catch(() => {});
+
+  const checkContext = await chromium.launchPersistentContext(config.browserProfileDir, {
+    headless: true,
+    slowMo: config.slowMoMs
+  });
+
+  try {
+    const checkPage = checkContext.pages()[0] || (await checkContext.newPage());
+    const validation = await validateSeekSession(checkPage, config);
+    if (validation.success) return validation;
+
+    return {
+      success: false,
+      message: "SEEK login window closed before the app could validate sign-in. Reopen SEEK Login and try again."
+    };
+  } finally {
+    await checkContext.close().catch(() => {});
+  }
 }
 
 async function waitForDelayOrBrowserClose(page, context, delayMs) {

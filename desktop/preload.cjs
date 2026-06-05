@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("seekApp", {
   startLogin: () => ipcRenderer.invoke("start-login"),
   continueLogin: () => ipcRenderer.invoke("continue-login"),
   checkLoginSession: () => ipcRenderer.invoke("check-login-session"),
+  logoutLoginSession: () => ipcRenderer.invoke("logout-login-session"),
   sendStdin: (data) => ipcRenderer.invoke("send-stdin", data),
 
   loadAppliedJobs: () => ipcRenderer.invoke("load-applied-jobs"),

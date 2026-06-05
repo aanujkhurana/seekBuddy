@@ -1,4 +1,5 @@
 const openLoginBtn = document.getElementById("openLogin");
+const logoutLoginBtn = document.getElementById("logoutLogin");
 const loginStatus = document.getElementById("loginStatus");
 const keywordsInput = document.getElementById("keywords");
 const locationInput = document.getElementById("location");
@@ -42,8 +43,10 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
   loginValidated = validated;
   loginInProgress = inProgress;
   document.body.classList.toggle("login-locked", !loginValidated);
-  openLoginBtn.disabled = false;
-  openLoginBtn.textContent = inProgress || failed || loginValidated ? "Reopen SEEK Login" : "Open SEEK Login";
+  openLoginBtn.style.display = loginValidated ? "none" : "";
+  logoutLoginBtn.style.display = loginValidated ? "" : "none";
+  openLoginBtn.disabled = inProgress;
+  openLoginBtn.textContent = failed ? "Reopen SEEK Login" : "Open SEEK Login";
   if (message) loginStatus.textContent = message;
 }
 
@@ -264,6 +267,16 @@ openLoginBtn.addEventListener("click", async () => {
   }
 });
 
+logoutLoginBtn.addEventListener("click", async () => {
+  const result = await window.seekApp.logoutLoginSession();
+  setLoginState({
+    validated: false,
+    inProgress: false,
+    message: result.message || "Logged out. Open SEEK Login to sign in again."
+  });
+  appendLog(result.message || "Logged out of SEEK session.");
+});
+
 document.getElementById("start").addEventListener("click", async () => {
   await window.seekApp.saveConfig(getConfig());
   logs.textContent = "";
@@ -361,7 +374,7 @@ window.seekApp.onLoginStatus((status) => {
     setLoginState({
       validated: true,
       inProgress: false,
-      message: message || "SEEK login saved for this app session."
+      message: message || "Logged in to SEEK. Session saved locally."
     });
     return;
   }
