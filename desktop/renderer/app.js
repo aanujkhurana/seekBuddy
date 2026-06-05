@@ -275,7 +275,9 @@ async function loadConfig() {
   coverLetterTones = Array.isArray(savedCoverLetter.tones)
     ? savedCoverLetter.tones.filter(Boolean)
     : splitSearchValues(savedCoverLetter.tone);
-  if (!coverLetterTones.length) coverLetterTones = ["professional", "direct", "confident", "tailored"];
+  if (!coverLetterTones.length || (coverLetterTones.length === 1 && coverLetterTones[0] === "professional")) {
+    coverLetterTones = ["professional", "direct", "confident", "tailored"];
+  }
   coverLetterTones = enforceToneLimit(coverLetterTones);
   renderSearchLists();
   maxApplicationsInput.value = config.maxApplications || 10;
