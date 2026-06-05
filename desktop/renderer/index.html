@@ -73,10 +73,6 @@
       <h3 class="subheading">Resume</h3>
       <button id="selectResume">Choose Resume</button>
       <p id="resumePath">No resume selected</p>
-      <div class="actions document-actions">
-        <button id="generateResumeContent" class="primary" disabled>Generate from Resume</button>
-      </div>
-      <p id="resumeGenerationStatus" class="hint">Upload a resume to generate a sample cover letter and resume summary with AI.</p>
 
       <div class="divider"></div>
 
@@ -84,12 +80,20 @@
       <button id="selectCoverLetter">Choose Cover Letter</button>
       <p id="coverLetterPath">No cover letter selected</p>
       <p class="hint">This cover letter is used as a reference. AI will write a tailored cover letter when available and fall back to this file if AI cannot connect.</p>
+      <div class="actions document-actions">
+        <button id="generateCoverLetterFromResume" class="primary" disabled>Generate Cover Letter from Resume</button>
+      </div>
+      <p id="coverLetterGenerationStatus" class="hint">Upload a resume to generate a sample cover letter with AI.</p>
 
       <div class="divider"></div>
 
       <label for="resumeSummary">Resume Summary — paste key experience points for AI context</label>
       <textarea id="resumeSummary" rows="4" placeholder="e.g. 5 years React & TypeScript at two startups. Built design systems from scratch. Led a team of 3 frontend devs. Strong UX instincts."></textarea>
       <p class="hint">The AI uses this to tailor cover letters and screening answers. Each line becomes a bullet point.</p>
+      <div class="actions document-actions">
+        <button id="generateSummaryFromResume" class="primary" disabled>Generate Summary from Resume</button>
+      </div>
+      <p id="summaryGenerationStatus" class="hint">Upload a resume to generate a resume summary with AI.</p>
     </section>
 
     <section class="card controls-logs-card" data-login-required data-main-page>

@@ -19,8 +19,10 @@ const reviewBeforeApplyInput = document.getElementById("reviewBeforeApply");
 const resumePathText = document.getElementById("resumePath");
 const coverLetterPathText = document.getElementById("coverLetterPath");
 const resumeSummaryInput = document.getElementById("resumeSummary");
-const generateResumeContentBtn = document.getElementById("generateResumeContent");
-const resumeGenerationStatus = document.getElementById("resumeGenerationStatus");
+const generateCoverLetterFromResumeBtn = document.getElementById("generateCoverLetterFromResume");
+const coverLetterGenerationStatus = document.getElementById("coverLetterGenerationStatus");
+const generateSummaryFromResumeBtn = document.getElementById("generateSummaryFromResume");
+const summaryGenerationStatus = document.getElementById("summaryGenerationStatus");
 const logs = document.getElementById("logs");
 const logsEmpty = document.getElementById("logsEmpty");
 
@@ -56,7 +58,7 @@ let loginInProgress = false;
 let jobTitles = [];
 let searchLocations = [];
 let hasAppliedJobs = false;
-let resumeGenerationBusy = false;
+let resumeGenerationTarget = "";
 
 function setLoginState({ validated, inProgress = false, failed = false, message }) {
   loginValidated = validated;
@@ -281,27 +283,44 @@ function updateAIConfiguredState() {
   updateResumeGenerationState();
 }
 
-function updateResumeGenerationState(message) {
+function getResumeGenerationMessage(kind) {
   const hasResume = Boolean(resumePath);
   const aiConfigured = isAIConfigured();
-  generateResumeContentBtn.disabled = resumeGenerationBusy || !hasResume || !aiConfigured;
-
-  if (message) {
-    resumeGenerationStatus.textContent = message;
-    return;
-  }
 
   if (!hasResume) {
-    resumeGenerationStatus.textContent = "Upload a resume to generate a sample cover letter and resume summary with AI.";
-    return;
+    return kind === "coverLetter"
+      ? "Upload a resume to generate a sample cover letter with AI."
+      : "Upload a resume to generate a resume summary with AI.";
   }
 
   if (!aiConfigured) {
-    resumeGenerationStatus.textContent = "Resume uploaded. AI is not configured yet, open Settings and configure AI before generating from your resume.";
-    return;
+    return kind === "coverLetter"
+      ? "Resume uploaded. AI is not configured yet, open Settings and configure AI before generating a cover letter from your resume."
+      : "Resume uploaded. AI is not configured yet, open Settings and configure AI before generating a summary from your resume.";
   }
 
-  resumeGenerationStatus.textContent = "Resume uploaded. Generate a resume summary and sample cover letter from this resume using AI.";
+  return kind === "coverLetter"
+    ? "Resume uploaded. Generate a sample cover letter from this resume using AI."
+    : "Resume uploaded. Generate a resume summary from this resume using AI.";
+}
+
+function updateResumeGenerationState(messages = {}) {
+  const hasResume = Boolean(resumePath);
+  const aiConfigured = isAIConfigured();
+  const isBusy = Boolean(resumeGenerationTarget);
+
+  generateCoverLetterFromResumeBtn.disabled = isBusy || !hasResume || !aiConfigured;
+  generateSummaryFromResumeBtn.disabled = isBusy || !hasResume || !aiConfigured;
+
+  coverLetterGenerationStatus.textContent = messages.coverLetter || getResumeGenerationMessage("coverLetter");
+  summaryGenerationStatus.textContent = messages.summary || getResumeGenerationMessage("summary");
+
+  if (resumeGenerationTarget === "coverLetter") {
+    coverLetterGenerationStatus.textContent = "Generating a sample cover letter from your uploaded resume...";
+  }
+  if (resumeGenerationTarget === "summary") {
+    summaryGenerationStatus.textContent = "Generating a resume summary from your uploaded resume...";
+  }
 }
 
 function getAIConfig() {
@@ -439,49 +458,83 @@ document.getElementById("selectCoverLetter").addEventListener("click", async () 
   }
 });
 
-generateResumeContentBtn.addEventListener("click", async () => {
+async function generateFromResume(kind) {
   if (!resumePath) {
-    updateResumeGenerationState("Upload a resume before generating sample content.");
+    updateResumeGenerationState({
+      [kind]: kind === "coverLetter"
+        ? "Upload a resume before generating a cover letter."
+        : "Upload a resume before generating a summary."
+    });
     return;
   }
   if (!isAIConfigured()) {
-    updateResumeGenerationState("AI is not configured. Open Settings and configure AI before generating from your resume.");
+    updateResumeGenerationState({
+      [kind]: kind === "coverLetter"
+        ? "AI is not configured. Open Settings and configure AI before generating a cover letter from your resume."
+        : "AI is not configured. Open Settings and configure AI before generating a summary from your resume."
+    });
     return;
   }
 
-  resumeGenerationBusy = true;
-  updateResumeGenerationState("Generating a resume summary and sample cover letter from your uploaded resume...");
-  appendLog("Generating resume summary and sample cover letter from uploaded resume...");
+  resumeGenerationTarget = kind;
+  updateResumeGenerationState();
+  appendLog(kind === "coverLetter"
+    ? "Generating sample cover letter from uploaded resume..."
+    : "Generating resume summary from uploaded resume...");
 
-  let finalMessage = "";
+  const finalMessages = {};
   try {
     await saveAISettings();
     await window.seekApp.saveConfig(getConfig());
 
-    const result = await window.seekApp.generateResumeArtifacts({ resumePath });
+    const result = await window.seekApp.generateResumeArtifacts({
+      resumePath,
+      target: kind
+    });
     if (!result.success) {
-      finalMessage = result.message || "Could not generate sample content from this resume.";
-      updateResumeGenerationState(finalMessage);
+      finalMessages[kind] = result.message || (kind === "coverLetter"
+        ? "Could not generate a cover letter from this resume."
+        : "Could not generate a summary from this resume.");
+      updateResumeGenerationState(finalMessages);
       appendLog(`[WARN] ${result.message || "Resume generation failed."}`);
       return;
     }
 
-    resumeSummaryInput.value = Array.isArray(result.resumeSummary) ? result.resumeSummary.join("\n") : "";
-    coverLetterPath = result.coverLetterPath || coverLetterPath;
-    coverLetterPathText.textContent = coverLetterPath || "No cover letter selected";
+    if (kind === "summary") {
+      resumeSummaryInput.value = Array.isArray(result.resumeSummary) ? result.resumeSummary.join("\n") : "";
+      finalMessages.summary = "Generated summary from resume. Review it before applying.";
+    }
+
+    if (kind === "coverLetter") {
+      coverLetterPath = result.coverLetterPath || coverLetterPath;
+      coverLetterPathText.textContent = coverLetterPath || "No cover letter selected";
+      finalMessages.coverLetter = "Generated sample cover letter from resume. Review it before applying.";
+    }
+
     await window.seekApp.saveConfig(getConfig());
 
-    finalMessage = "Generated from resume. Review the resume summary and sample cover letter before applying.";
-    updateResumeGenerationState(finalMessage);
-    appendLog(`[OK] Generated resume summary and sample cover letter: ${coverLetterPath}`);
+    updateResumeGenerationState(finalMessages);
+    appendLog(kind === "coverLetter"
+      ? `[OK] Generated sample cover letter: ${coverLetterPath}`
+      : "[OK] Generated resume summary from uploaded resume.");
   } catch (error) {
-    finalMessage = error.message || "Could not generate sample content from this resume.";
-    updateResumeGenerationState(finalMessage);
+    finalMessages[kind] = error.message || (kind === "coverLetter"
+      ? "Could not generate a cover letter from this resume."
+      : "Could not generate a summary from this resume.");
+    updateResumeGenerationState(finalMessages);
     appendLog(`[WARN] ${error.message || "Resume generation failed."}`);
   } finally {
-    resumeGenerationBusy = false;
-    updateResumeGenerationState(finalMessage);
+    resumeGenerationTarget = "";
+    updateResumeGenerationState(finalMessages);
   }
+}
+
+generateCoverLetterFromResumeBtn.addEventListener("click", () => {
+  generateFromResume("coverLetter");
+});
+
+generateSummaryFromResumeBtn.addEventListener("click", () => {
+  generateFromResume("summary");
 });
 
 addJobTitleBtn.addEventListener("click", addJobTitle);

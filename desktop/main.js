@@ -760,7 +760,7 @@ function getAIConfigurationMessage(config) {
   return "AI is not configured. Open Settings and choose an AI mode first.";
 }
 
-ipcMain.handle("generate-resume-artifacts", async (_, { resumePath }) => {
+ipcMain.handle("generate-resume-artifacts", async (_, { resumePath, target }) => {
   try {
     const config = getConfigWithAIKey();
     const aiMessage = getAIConfigurationMessage(config);
@@ -780,21 +780,26 @@ ipcMain.handle("generate-resume-artifacts", async (_, { resumePath }) => {
       resumeText: extractedResume
     });
 
-    const generatedDir = path.join(getUserDataPath(), "generated");
-    fs.mkdirSync(generatedDir, { recursive: true });
-    const coverLetterPath = path.join(generatedDir, "sample-cover-letter-from-resume.txt");
-    fs.writeFileSync(coverLetterPath, `${generated.sampleCoverLetter.trim()}\n`);
+    let coverLetterPath = "";
+    if (target === "coverLetter") {
+      const generatedDir = path.join(getUserDataPath(), "generated");
+      fs.mkdirSync(generatedDir, { recursive: true });
+      coverLetterPath = path.join(generatedDir, "sample-cover-letter-from-resume.txt");
+      fs.writeFileSync(coverLetterPath, `${generated.sampleCoverLetter.trim()}\n`);
+    }
 
     return {
       success: true,
-      resumeSummary: generated.resumeSummary,
+      resumeSummary: target === "summary" ? generated.resumeSummary : [],
       coverLetterPath,
-      coverLetterPreview: generated.sampleCoverLetter
+      coverLetterPreview: target === "coverLetter" ? generated.sampleCoverLetter : ""
     };
   } catch (error) {
     return {
       success: false,
-      message: error.message || "Could not generate sample content from the resume."
+      message: error.message || (target === "coverLetter"
+        ? "Could not generate a cover letter from the resume."
+        : "Could not generate a summary from the resume.")
     };
   }
 });
