@@ -13,6 +13,10 @@ const ROOT = path.join(__dirname, "..");
 let mainWindow;
 let runningProcess = null;
 let loginProcess = null;
+let loginCheckProcess = null;
+let cancelLoginCheck = null;
+let loginSessionValidated = false;
+const LOGIN_CHECK_TIMEOUT_MS = 30000;
 
 function getUserDataPath() {
   const dir = path.join(app.getPath("userData"), "seek-apply-assistant");
@@ -45,8 +49,8 @@ function send(channel, data) {
   }
 }
 
-function spawnScript(scriptRelPath, env) {
-  return spawn(process.execPath, [path.join(ROOT, scriptRelPath)], {
+function spawnScript(scriptRelPath, env, args = []) {
+  return spawn(process.execPath, [path.join(ROOT, scriptRelPath), ...args], {
     cwd: ROOT,
     stdio: ["pipe", "pipe", "pipe"],
     env: { ...process.env, USER_DATA_DIR: getUserDataPath(), ...env }
@@ -126,6 +130,7 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   if (runningProcess && !runningProcess.killed) runningProcess.kill();
   if (loginProcess && !loginProcess.killed) loginProcess.kill();
+  if (loginCheckProcess && !loginCheckProcess.killed) loginCheckProcess.kill();
 });
 
 // ---- Crash logging ----
@@ -221,6 +226,11 @@ ipcMain.handle("load-config", async () => {
   const filePath = path.join(getUserDataPath(), "config.json");
   if (!fs.existsSync(filePath)) return null;
   const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  if (raw.email || raw.password) {
+    raw.email = "";
+    raw.password = "";
+    fs.writeFileSync(filePath, JSON.stringify(raw, null, 2));
+  }
   return { ...DEFAULTS, ...raw };
 });
 
@@ -301,24 +311,73 @@ ipcMain.handle("get-automation-status", async () => {
 
 // ---- Login ----
 
+function getLoginSessionPath() {
+  return path.join(getUserDataPath(), "login-session.json");
+}
+
+function hasLoginSessionMarker() {
+  return fs.existsSync(getLoginSessionPath());
+}
+
+function saveLoginSessionMarker() {
+  fs.writeFileSync(getLoginSessionPath(), JSON.stringify({
+    validatedAt: new Date().toISOString()
+  }, null, 2));
+}
+
+function clearLoginSessionMarker() {
+  const sessionPath = getLoginSessionPath();
+  if (fs.existsSync(sessionPath)) fs.unlinkSync(sessionPath);
+}
+
+function updateLoginValidation(success) {
+  loginSessionValidated = success;
+  if (success) saveLoginSessionMarker();
+  else clearLoginSessionMarker();
+}
+
 ipcMain.handle("start-login", async () => {
-  if (loginProcess) {
-    return { success: false, message: "Login already in progress." };
+  if (loginProcess && !loginProcess.killed) {
+    const staleLogin = loginProcess;
+    loginProcess = null;
+    staleLogin.kill();
   }
 
-  const proc = spawnScript("src/seek-login.js");
+  if (loginCheckProcess && !loginCheckProcess.killed) {
+    if (cancelLoginCheck) {
+      cancelLoginCheck("Starting a fresh SEEK login.");
+    } else {
+      loginCheckProcess.kill();
+      loginCheckProcess = null;
+    }
+  }
+
+  const proc = spawnScript("src/seek-login.js", { SEEK_ASSISTANT_DESKTOP_LOGIN: "1" });
   loginProcess = proc;
 
   proc.stdout.on("data", (data) => send("automation-log", data.toString()));
   proc.stderr.on("data", (data) => send("automation-log", data.toString()));
 
-  proc.on("close", () => {
+  proc.on("close", (code) => {
+    if (loginProcess !== proc) return;
     loginProcess = null;
-    send("automation-log", "[INFO] Login process completed.\n");
-    send("login-status", "completed");
+    const success = code === 0;
+    updateLoginValidation(success);
+    send("automation-log", success
+      ? "[INFO] Login session validated.\n"
+      : "[WARN] Login session could not be validated.\n");
+    send("login-status", {
+      state: success ? "validated" : "failed",
+      message: success
+        ? "SEEK login saved for this app session."
+        : "SEEK login could not be validated. Reopen SEEK and sign in with email again."
+    });
   });
 
-  send("login-status", "started");
+  send("login-status", {
+    state: "started",
+    message: "SEEK login window opened. Choose email login in SEEK and sign in manually. The app will unlock automatically."
+  });
   return { success: true };
 });
 
@@ -328,6 +387,82 @@ ipcMain.handle("continue-login", async () => {
     return { success: true };
   }
   return { success: false, message: "No login process running." };
+});
+
+ipcMain.handle("check-login-session", async () => {
+  if (loginSessionValidated) {
+    return { success: true, validated: true, message: "SEEK login already validated for this app session." };
+  }
+
+  if (!hasLoginSessionMarker()) {
+    return {
+      success: true,
+      validated: false,
+      message: "No saved SEEK login session found. Open SEEK, choose email login, and sign in manually."
+    };
+  }
+
+  if (loginProcess || loginCheckProcess) {
+    return { success: false, validated: false, message: "Login validation is already running." };
+  }
+
+  send("login-status", {
+    state: "checking",
+    message: "Checking saved SEEK login session..."
+  });
+
+  const proc = spawnScript("src/seek-login.js", {}, ["--check-only"]);
+  loginCheckProcess = proc;
+
+  proc.stdout.on("data", (data) => send("automation-log", data.toString()));
+  proc.stderr.on("data", (data) => send("automation-log", data.toString()));
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = ({ success, message }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (loginCheckProcess === proc) loginCheckProcess = null;
+      cancelLoginCheck = null;
+      updateLoginValidation(success);
+      send("login-status", {
+        state: success ? "validated" : "failed",
+        message
+      });
+      resolve({ success: true, validated: success, message });
+    };
+
+    const timeout = setTimeout(() => {
+      if (settled || loginCheckProcess !== proc) return;
+      proc.kill();
+      finish({
+        success: false,
+        message: "Saved SEEK login check timed out. Reopen SEEK and sign in with email again."
+      });
+    }, LOGIN_CHECK_TIMEOUT_MS);
+
+    cancelLoginCheck = (message) => {
+      if (settled) return;
+      proc.kill();
+      finish({
+        success: false,
+        message: message || "Saved SEEK login check was cancelled."
+      });
+    };
+
+    proc.on("close", (code) => {
+      if (settled || loginCheckProcess !== proc) return;
+      const success = code === 0;
+      const message = success
+        ? "Saved SEEK login session validated."
+        : "Saved SEEK login session has expired. Reopen SEEK and sign in with email again.";
+      finish({
+        success,
+        message
+      });
+    });
+  });
 });
 
 // ---- Stdin passthrough ----

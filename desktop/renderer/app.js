@@ -1,5 +1,5 @@
-const emailInput = document.getElementById("email");
-const passwordInput = document.getElementById("password");
+const openLoginBtn = document.getElementById("openLogin");
+const loginStatus = document.getElementById("loginStatus");
 const keywordsInput = document.getElementById("keywords");
 const locationInput = document.getElementById("location");
 const maxApplicationsInput = document.getElementById("maxApplications");
@@ -35,6 +35,17 @@ let coverLetterPath = "";
 let keyVisible = false;
 let automationRunning = false;
 let hostedRegistered = false;
+let loginValidated = false;
+let loginInProgress = false;
+
+function setLoginState({ validated, inProgress = false, failed = false, message }) {
+  loginValidated = validated;
+  loginInProgress = inProgress;
+  document.body.classList.toggle("login-locked", !loginValidated);
+  openLoginBtn.disabled = false;
+  openLoginBtn.textContent = inProgress || failed || loginValidated ? "Reopen SEEK Login" : "Open SEEK Login";
+  if (message) loginStatus.textContent = message;
+}
 
 function setStatus(state) {
   automationRunning = state === "running";
@@ -47,8 +58,8 @@ function setStatus(state) {
 
 function getConfig() {
   return {
-    email: emailInput.value.trim(),
-    password: passwordInput.value.trim(),
+    email: "",
+    password: "",
     keywords: keywordsInput.value.trim(),
     location: locationInput.value.trim(),
     maxApplications: Number(maxApplicationsInput.value) || 10,
@@ -68,8 +79,6 @@ async function loadConfig() {
   const config = await window.seekApp.loadConfig();
   if (!config) return;
 
-  emailInput.value = config.email || "";
-  passwordInput.value = config.password || "";
   keywordsInput.value = config.keywords || "";
   locationInput.value = config.location || "";
   maxApplicationsInput.value = config.maxApplications || 10;
@@ -121,7 +130,7 @@ async function registerHostedIfNeeded() {
 
   aiStatus.textContent = "Registering with backend...";
   const backendUrl = backendUrlInput.value.trim() || "http://localhost:3000";
-  const email = emailInput.value.trim() || "user@seek-assistant.local";
+  const email = "user@seek-assistant.local";
 
   const result = await window.seekApp.registerHosted({ email, backendUrl });
   if (result.success) {
@@ -239,6 +248,22 @@ document.getElementById("saveConfig").addEventListener("click", async () => {
   appendLog("Config saved.");
 });
 
+openLoginBtn.addEventListener("click", async () => {
+  await window.seekApp.saveConfig(getConfig());
+  const result = await window.seekApp.startLogin();
+  if (result.success) {
+    setLoginState({
+      validated: false,
+      inProgress: true,
+      message: "SEEK login window opened. Choose email login in SEEK and sign in manually. The app will unlock automatically."
+    });
+    appendLog("SEEK login window opened.");
+  } else {
+    loginStatus.textContent = result.message || "Could not open SEEK login.";
+    appendLog(`[WARN] ${loginStatus.textContent}`);
+  }
+});
+
 document.getElementById("start").addEventListener("click", async () => {
   await window.seekApp.saveConfig(getConfig());
   logs.textContent = "";
@@ -323,6 +348,34 @@ window.seekApp.onStatusChange((status) => {
   setStatus(status);
 });
 
+window.seekApp.onLoginStatus((status) => {
+  const state = typeof status === "string" ? status : status.state;
+  const message = typeof status === "string" ? "" : status.message;
+
+  if (state === "started" || state === "checking") {
+    setLoginState({ validated: false, inProgress: state === "started", message });
+    return;
+  }
+
+  if (state === "validated" || state === "completed") {
+    setLoginState({
+      validated: true,
+      inProgress: false,
+      message: message || "SEEK login saved for this app session."
+    });
+    return;
+  }
+
+  if (state === "failed") {
+    setLoginState({
+      validated: false,
+      inProgress: false,
+      failed: true,
+      message: message || "SEEK login could not be validated. Reopen SEEK and sign in with email again."
+    });
+  }
+});
+
 // ---- Usage dashboard ----
 
 const usageContent = document.getElementById("usageContent");
@@ -378,6 +431,12 @@ async function init() {
   const status = await window.seekApp.getAutomationStatus();
   setStatus(status);
   await Promise.all([loadConfig(), loadAIConfig(), loadAppliedJobs()]);
+  const login = await window.seekApp.checkLoginSession();
+  setLoginState({
+    validated: Boolean(login.validated),
+    inProgress: false,
+    message: login.message || (login.validated ? "SEEK login saved for this app session." : "Sign in manually before configuring applications.")
+  });
   await loadUsageDashboard();
 }
 

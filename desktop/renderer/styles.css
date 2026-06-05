@@ -50,6 +50,10 @@ body {
   backdrop-filter: blur(14px);
 }
 
+.login-locked [data-login-required] {
+  display: none;
+}
+
 .card h2 {
   font-size: 18px;
   margin: 0 0 16px;

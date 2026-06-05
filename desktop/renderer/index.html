@@ -5,24 +5,24 @@
   <title>Seek Apply Assistant</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body>
+<body class="login-locked">
   <main class="app">
     <section class="hero">
       <h1>Seek Apply Assistant</h1>
       <p>Configure your job search, run the assistant, and stop anytime.</p>
     </section>
 
-    <section class="card">
+    <section class="card" id="loginCard">
       <h2>Login</h2>
 
-      <label>Email</label>
-      <input id="email" type="email" placeholder="you@email.com" />
-
-      <label>Password</label>
-      <input id="password" type="password" placeholder="Seek password" />
+      <div class="actions">
+        <button id="openLogin">Open SEEK Login</button>
+      </div>
+      <p class="hint">SEEK opens in a visible browser. Choose the email login option and sign in there; the app unlocks automatically after the session is validated.</p>
+      <p id="loginStatus" class="hint">Sign in manually before configuring applications. Your SEEK browser session is stored locally and can survive app restarts until SEEK expires it.</p>
     </section>
 
-    <section class="card">
+    <section class="card" data-login-required>
       <h2>Job Search Settings</h2>
 
       <label>Keywords</label>
@@ -40,7 +40,7 @@
       </label>
     </section>
 
-    <section class="card">
+    <section class="card" data-login-required>
       <h2>Documents</h2>
 
       <button id="selectResume">Choose Resume</button>
@@ -54,7 +54,7 @@
       <p class="hint">The AI uses this to tailor cover letters and screening answers. Each line becomes a bullet point.</p>
     </section>
 
-    <section class="card">
+    <section class="card" data-login-required>
       <h2>AI Settings</h2>
 
       <label>AI Mode</label>
@@ -103,7 +103,7 @@
       </div>
     </section>
 
-    <section class="card">
+    <section class="card" data-login-required>
       <h2>Controls</h2>
       <div class="status-row">
         <span id="statusIndicator" class="status-dot idle"></span>
@@ -118,12 +118,12 @@
       </div>
     </section>
 
-    <section class="card">
+    <section class="card" data-login-required>
       <h2>Live Logs</h2>
       <pre id="logs"></pre>
     </section>
 
-    <section class="card" id="appliedSection">
+    <section class="card" id="appliedSection" data-login-required>
       <h2>Applied Jobs</h2>
       <div id="appliedList" class="applied-list">
         <p class="hint">No jobs applied yet.</p>
@@ -131,7 +131,7 @@
       <button id="exportJobs" class="btn-sm" style="margin-top:12px">Export</button>
     </section>
 
-    <section class="card" id="usageSection">
+    <section class="card" id="usageSection" data-login-required>
       <h2>Usage</h2>
       <div id="usageContent">
         <p class="hint">Connect to hosted AI to view usage stats.</p>
