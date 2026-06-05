@@ -234,16 +234,6 @@ body {
   display: block;
 }
 
-.hero h1 .heading-icon {
-  font-size: 32px;
-  color: var(--primary);
-}
-
-.settings-header .heading-icon {
-  font-size: 20px;
-  color: var(--primary);
-}
-
 .card h2 .heading-icon {
   font-size: 18px;
   color: var(--primary);
