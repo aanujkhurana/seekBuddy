@@ -61,7 +61,7 @@ let loginValidated = false;
 let loginInProgress = false;
 let jobTitles = [];
 let searchLocations = [];
-let coverLetterTones = ["professional"];
+let coverLetterTones = ["professional", "direct", "confident", "tailored"];
 let hasAppliedJobs = false;
 let resumeGenerationTarget = "";
 
@@ -134,6 +134,13 @@ function addUniqueValue(list, value) {
   return exists ? list : [...list, normalized];
 }
 
+const MAX_TONES = 5;
+
+function enforceToneLimit(list) {
+  if (list.length <= MAX_TONES) return list;
+  return list.slice(list.length - MAX_TONES);
+}
+
 function renderChipList({ values, container, onRemove }) {
   container.innerHTML = "";
   values.forEach((value, index) => {
@@ -200,7 +207,7 @@ function addSearchLocation() {
 }
 
 function addCoverLetterTone() {
-  coverLetterTones = addUniqueValue(coverLetterTones, coverLetterToneInput.value);
+  coverLetterTones = enforceToneLimit(addUniqueValue(coverLetterTones, coverLetterToneInput.value));
   coverLetterToneInput.value = "";
   renderSearchLists();
   coverLetterToneInput.focus();
@@ -225,7 +232,7 @@ function updateLogsEmptyState() {
 function getConfig() {
   const titlesForConfig = addUniqueValue(jobTitles, jobTitleInput.value);
   const locationsForConfig = addUniqueValue(searchLocations, searchLocationInput.value);
-  const tonesForConfig = addUniqueValue(coverLetterTones, coverLetterToneInput.value);
+  const tonesForConfig = enforceToneLimit(addUniqueValue(coverLetterTones, coverLetterToneInput.value));
   const coverLetterWordLimit = Math.min(Math.max(Number(coverLetterWordLimitInput.value) || 280, 120), 500);
 
   return {
@@ -268,7 +275,8 @@ async function loadConfig() {
   coverLetterTones = Array.isArray(savedCoverLetter.tones)
     ? savedCoverLetter.tones.filter(Boolean)
     : splitSearchValues(savedCoverLetter.tone || "professional");
-  if (!coverLetterTones.length) coverLetterTones = ["professional"];
+  if (!coverLetterTones.length) coverLetterTones = ["professional", "direct", "confident", "tailored"];
+  coverLetterTones = enforceToneLimit(coverLetterTones);
   renderSearchLists();
   maxApplicationsInput.value = config.maxApplications || 10;
   reviewBeforeApplyInput.checked = Boolean(config.reviewBeforeApply);
