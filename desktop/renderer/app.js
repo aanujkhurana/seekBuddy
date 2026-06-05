@@ -1,7 +1,9 @@
-const openLoginBtn = document.getElementById("openLogin");
-const logoutLoginBtn = document.getElementById("logoutLogin");
-const loginStatus = document.getElementById("loginStatus");
-const loginStateBadge = document.getElementById("loginStateBadge");
+const settingsToggle = document.getElementById("settingsToggle");
+const settingsBack = document.getElementById("settingsBack");
+const openLoginBtns = Array.from(document.querySelectorAll("[data-open-login]"));
+const logoutLoginBtns = Array.from(document.querySelectorAll("[data-logout-login]"));
+const loginStatuses = Array.from(document.querySelectorAll("[data-login-status]"));
+const loginStateBadges = Array.from(document.querySelectorAll("[data-login-badge]"));
 const loginHelp = Array.from(document.querySelectorAll(".login-help"));
 const jobTitleInput = document.getElementById("jobTitleInput");
 const addJobTitleBtn = document.getElementById("addJobTitle");
@@ -51,16 +53,38 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
   loginValidated = validated;
   loginInProgress = inProgress;
   document.body.classList.toggle("login-locked", !loginValidated);
-  openLoginBtn.style.display = loginValidated ? "none" : "";
-  logoutLoginBtn.style.display = loginValidated ? "" : "none";
-  openLoginBtn.disabled = inProgress;
-  openLoginBtn.textContent = failed ? "Reopen SEEK Login" : "Open SEEK Login";
-  loginStateBadge.className = "session-badge " + (loginValidated ? "logged-in" : inProgress ? "checking" : "logged-out");
-  loginStateBadge.textContent = loginValidated ? "Logged in" : inProgress ? "Checking login..." : "Not logged in";
+  document.body.classList.toggle("logged-in", loginValidated);
+  if (!loginValidated) document.body.classList.remove("settings-open");
+
+  openLoginBtns.forEach((button) => {
+    button.style.display = loginValidated ? "none" : "";
+    button.disabled = inProgress;
+    button.textContent = failed ? "Reopen SEEK Login" : "Open SEEK Login";
+  });
+  logoutLoginBtns.forEach((button) => {
+    button.style.display = loginValidated ? "" : "none";
+  });
+  loginStateBadges.forEach((badge) => {
+    badge.className = "session-badge " + (loginValidated ? "logged-in" : inProgress ? "checking" : "logged-out");
+    badge.textContent = loginValidated ? "Logged in" : inProgress ? "Checking login..." : "Not logged in";
+  });
   loginHelp.forEach((element) => {
     element.style.display = loginValidated ? "none" : "";
   });
-  if (message) loginStatus.textContent = message;
+  if (message) {
+    loginStatuses.forEach((status) => {
+      status.textContent = message;
+    });
+  }
+}
+
+function openSettings() {
+  if (!loginValidated) return;
+  document.body.classList.add("settings-open");
+}
+
+function closeSettings() {
+  document.body.classList.remove("settings-open");
 }
 
 function splitSearchValues(value) {
@@ -354,7 +378,10 @@ searchLocationInput.addEventListener("keydown", (event) => {
   }
 });
 
-openLoginBtn.addEventListener("click", async () => {
+settingsToggle.addEventListener("click", openSettings);
+settingsBack.addEventListener("click", closeSettings);
+
+async function openSeekLogin() {
   await window.seekApp.saveConfig(getConfig());
   const result = await window.seekApp.startLogin();
   if (result.success) {
@@ -365,12 +392,19 @@ openLoginBtn.addEventListener("click", async () => {
     });
     appendLog("SEEK login window opened.");
   } else {
-    loginStatus.textContent = result.message || "Could not open SEEK login.";
-    appendLog(`[WARN] ${loginStatus.textContent}`);
+    const message = result.message || "Could not open SEEK login.";
+    loginStatuses.forEach((status) => {
+      status.textContent = message;
+    });
+    appendLog(`[WARN] ${message}`);
   }
+}
+
+openLoginBtns.forEach((button) => {
+  button.addEventListener("click", openSeekLogin);
 });
 
-logoutLoginBtn.addEventListener("click", async () => {
+async function logoutSeekLogin() {
   const result = await window.seekApp.logoutLoginSession();
   setLoginState({
     validated: false,
@@ -378,6 +412,10 @@ logoutLoginBtn.addEventListener("click", async () => {
     message: result.message || "Logged out. Open SEEK Login to sign in again."
   });
   appendLog(result.message || "Logged out of SEEK session.");
+}
+
+logoutLoginBtns.forEach((button) => {
+  button.addEventListener("click", logoutSeekLogin);
 });
 
 document.getElementById("start").addEventListener("click", async () => {

@@ -30,6 +30,13 @@ body {
   margin-bottom: 24px;
 }
 
+.hero-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .hero h1 {
   font-size: 40px;
   margin: 0 0 8px;
@@ -52,6 +59,37 @@ body {
 
 .login-locked [data-login-required] {
   display: none;
+}
+
+.login-locked #settingsToggle {
+  display: none;
+}
+
+.logged-in #loginCard {
+  display: none;
+}
+
+.settings-page {
+  display: none;
+}
+
+.settings-open [data-main-page] {
+  display: none;
+}
+
+.settings-open .settings-page {
+  display: block;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.settings-header h2 {
+  margin: 0;
 }
 
 .session-badge {
@@ -134,6 +172,11 @@ input:focus {
   line-height: 1;
 }
 
+.settings-btn {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 .chip-list {
   display: flex;
   flex-wrap: wrap;
@@ -168,6 +211,26 @@ input:focus {
   font-size: 13px;
   line-height: 1;
   color: var(--muted);
+}
+
+.check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  color: var(--text);
+}
+
+.check-row input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  accent-color: var(--primary);
+  margin: 0;
+}
+
+.check-row span {
+  line-height: 1.3;
 }
 
 textarea {
@@ -231,6 +294,10 @@ pre {
   padding: 16px;
   color: #d1d5db;
   white-space: pre-wrap;
+}
+
+.controls-logs-card pre {
+  margin-top: 14px;
 }
 
 select {

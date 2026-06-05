@@ -8,23 +8,28 @@
 <body class="login-locked">
   <main class="app">
     <section class="hero">
-      <h1>Seek Apply Assistant</h1>
-      <p>Configure your job search, run the assistant, and stop anytime.</p>
+      <div class="hero-row">
+        <div>
+          <h1>Seek Apply Assistant</h1>
+          <p>Configure your job search, run the assistant, and stop anytime.</p>
+        </div>
+        <button id="settingsToggle" class="icon-btn settings-btn" aria-label="Open settings" title="Settings">⚙</button>
+      </div>
     </section>
 
-    <section class="card" id="loginCard">
-      <h2>Login</h2>
-      <div id="loginStateBadge" class="session-badge logged-out">Not logged in</div>
+    <section class="card" id="loginCard" data-main-page>
+      <h2>SEEK LOGIN</h2>
+      <div class="session-badge logged-out" data-login-badge>Not logged in</div>
 
       <div class="actions">
-        <button id="openLogin">Open SEEK Login</button>
-        <button id="logoutLogin" class="danger" style="display:none">Logout</button>
+        <button data-open-login>Open SEEK Login</button>
+        <button class="danger" data-logout-login style="display:none">Logout</button>
       </div>
       <p class="hint login-help">SEEK opens in a visible browser. Choose the email login option and sign in there; the app unlocks automatically after the session is validated.</p>
-      <p id="loginStatus" class="hint login-help">Sign in manually before configuring applications. Your SEEK browser session is stored locally and can survive app restarts until SEEK expires it.</p>
+      <p class="hint login-help" data-login-status>Sign in manually before configuring applications. Your SEEK browser session is stored locally and can survive app restarts until SEEK expires it.</p>
     </section>
 
-    <section class="card" data-login-required>
+    <section class="card" data-login-required data-main-page>
       <h2>Job Search Settings</h2>
 
       <label for="jobTitleInput">JOB TITLE</label>
@@ -35,6 +40,8 @@
       <div id="jobTitleList" class="chip-list"></div>
       <p class="hint">Add multiple job titles to search each title separately, for example Frontend Developer and React Developer.</p>
 
+      <div class="divider"></div>
+
       <label for="searchLocationInput">LOCATION</label>
       <div class="add-row">
         <input id="searchLocationInput" placeholder="Brisbane" />
@@ -43,16 +50,18 @@
       <div id="locationList" class="chip-list"></div>
       <p class="hint">Add multiple locations to search every job title in every location. Use Remote as a location if needed.</p>
 
+      <div class="divider"></div>
+
       <label>Maximum applications per run</label>
       <input id="maxApplications" type="number" value="10" />
 
-      <label>
+      <label class="check-row">
         <input id="reviewBeforeApply" type="checkbox" checked />
-        Review before applying
+        <span>Review before applying</span>
       </label>
     </section>
 
-    <section class="card" data-login-required>
+    <section class="card" data-login-required data-main-page>
       <h2>Documents</h2>
 
       <h3 class="subheading">Resume</h3>
@@ -73,57 +82,7 @@
       <p class="hint">The AI uses this to tailor cover letters and screening answers. Each line becomes a bullet point.</p>
     </section>
 
-    <section class="card" data-login-required>
-      <h2>AI Settings</h2>
-
-      <label>AI Mode</label>
-      <select id="aiMode">
-        <option value="hosted">Use Built-in AI (limited daily usage)</option>
-        <option value="byok">Use My Own API Key</option>
-      </select>
-
-      <div id="hostedSettings">
-        <label>Backend URL</label>
-        <input id="backendUrl" placeholder="http://localhost:3000" />
-
-        <label>AI Quality</label>
-        <select id="hostedModel">
-          <option value="budget">Budget — cheapest, good for simple tasks</option>
-          <option value="balanced">Balanced — better answers, slightly more usage</option>
-          <option value="premium">Premium — best quality, uses more credits</option>
-        </select>
-        <p class="hint">Built-in AI is powered by budget models. Daily limits apply.</p>
-      </div>
-
-      <div id="byokSettings" style="display:none">
-        <label>Provider</label>
-        <select id="byokProvider">
-          <option value="openrouter">OpenRouter</option>
-          <option value="openai">OpenAI</option>
-          <option value="gemini">Gemini</option>
-          <option value="deepseek">DeepSeek</option>
-          <option value="minimax">MiniMax</option>
-        </select>
-
-        <label>Model</label>
-        <input id="byokModel" placeholder="deepseek/deepseek-chat" />
-
-        <label>API Key</label>
-        <div class="key-row">
-          <input id="apiKeyInput" type="password" placeholder="sk-..." />
-          <button id="toggleKeyVisibility" class="btn-sm">Show</button>
-        </div>
-
-        <div class="actions" style="margin-top:8px">
-          <button id="testConnection">Test Connection</button>
-          <button id="saveAISettings" class="primary">Save AI Settings</button>
-        </div>
-        <p id="aiStatus" class="hint"></p>
-      </div>
-    </section>
-
-    <section class="card" data-login-required>
-      <h2>Controls</h2>
+    <section class="card controls-logs-card" data-login-required data-main-page>
       <div class="status-row">
         <span id="statusIndicator" class="status-dot idle"></span>
         <span id="statusLabel">Idle</span>
@@ -135,14 +94,10 @@
         <button id="continueBtn" class="continue">Continue</button>
         <button id="clearApplied">Clear Applied History</button>
       </div>
-    </section>
-
-    <section class="card" data-login-required>
-      <h2>Live Logs</h2>
       <pre id="logs"></pre>
     </section>
 
-    <section class="card" id="appliedSection" data-login-required>
+    <section class="card" id="appliedSection" data-login-required data-main-page>
       <h2>Applied Jobs</h2>
       <div id="appliedList" class="applied-list">
         <p class="hint">No jobs applied yet.</p>
@@ -150,11 +105,79 @@
       <button id="exportJobs" class="btn-sm" style="margin-top:12px">Export</button>
     </section>
 
-    <section class="card" id="usageSection" data-login-required>
-      <h2>Usage</h2>
-      <div id="usageContent">
-        <p class="hint">Connect to hosted AI to view usage stats.</p>
+    <section id="settingsPage" class="settings-page" data-login-required>
+      <div class="settings-header">
+        <button id="settingsBack" class="btn-sm">Back</button>
+        <h2>Settings</h2>
       </div>
+
+      <section class="card">
+        <h2>SEEK LOGIN</h2>
+        <div class="session-badge logged-out" data-login-badge>Not logged in</div>
+
+        <div class="actions">
+          <button data-open-login>Open SEEK Login</button>
+          <button class="danger" data-logout-login style="display:none">Logout</button>
+        </div>
+        <p class="hint login-help">SEEK opens in a visible browser. Choose the email login option and sign in there; the app unlocks automatically after the session is validated.</p>
+        <p class="hint login-help" data-login-status>Sign in manually before configuring applications. Your SEEK browser session is stored locally and can survive app restarts until SEEK expires it.</p>
+      </section>
+
+      <section class="card">
+        <h2>AI Settings</h2>
+
+        <label>AI Mode</label>
+        <select id="aiMode">
+          <option value="hosted">Use Built-in AI (limited daily usage)</option>
+          <option value="byok">Use My Own API Key</option>
+        </select>
+
+        <div id="hostedSettings">
+          <label>Backend URL</label>
+          <input id="backendUrl" placeholder="http://localhost:3000" />
+
+          <label>AI Quality</label>
+          <select id="hostedModel">
+            <option value="budget">Budget — cheapest, good for simple tasks</option>
+            <option value="balanced">Balanced — better answers, slightly more usage</option>
+            <option value="premium">Premium — best quality, uses more credits</option>
+          </select>
+          <p class="hint">Built-in AI is powered by budget models. Daily limits apply.</p>
+        </div>
+
+        <div id="byokSettings" style="display:none">
+          <label>Provider</label>
+          <select id="byokProvider">
+            <option value="openrouter">OpenRouter</option>
+            <option value="openai">OpenAI</option>
+            <option value="gemini">Gemini</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="minimax">MiniMax</option>
+          </select>
+
+          <label>Model</label>
+          <input id="byokModel" placeholder="deepseek/deepseek-chat" />
+
+          <label>API Key</label>
+          <div class="key-row">
+            <input id="apiKeyInput" type="password" placeholder="sk-..." />
+            <button id="toggleKeyVisibility" class="btn-sm">Show</button>
+          </div>
+
+          <div class="actions" style="margin-top:8px">
+            <button id="testConnection">Test Connection</button>
+            <button id="saveAISettings" class="primary">Save AI Settings</button>
+          </div>
+          <p id="aiStatus" class="hint"></p>
+        </div>
+      </section>
+
+      <section class="card" id="usageSection">
+        <h2>Usage</h2>
+        <div id="usageContent">
+          <p class="hint">Connect to hosted AI to view usage stats.</p>
+        </div>
+      </section>
     </section>
   </main>
 
