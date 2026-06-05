@@ -4,6 +4,7 @@ import os from "os";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import fs from "fs";
+import zlib from "zlib";
 import { DEFAULTS, encryptKey as fallbackEncrypt, decryptKey as fallbackDecrypt } from "./config-utils.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -350,6 +351,136 @@ function loadSavedConfig() {
   return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(configPath, "utf8")) };
 }
 
+function readDocxEntry(buffer, targetName) {
+  const eocdSignature = 0x06054b50;
+  let eocdOffset = -1;
+  for (let i = buffer.length - 22; i >= 0; i -= 1) {
+    if (buffer.readUInt32LE(i) === eocdSignature) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  if (eocdOffset < 0) return "";
+
+  const centralDirectorySize = buffer.readUInt32LE(eocdOffset + 12);
+  const centralDirectoryOffset = buffer.readUInt32LE(eocdOffset + 16);
+  const centralDirectoryEnd = centralDirectoryOffset + centralDirectorySize;
+
+  for (let offset = centralDirectoryOffset; offset < centralDirectoryEnd;) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) break;
+    const compressionMethod = buffer.readUInt16LE(offset + 10);
+    const compressedSize = buffer.readUInt32LE(offset + 20);
+    const fileNameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    const localHeaderOffset = buffer.readUInt32LE(offset + 42);
+    const fileName = buffer.toString("utf8", offset + 46, offset + 46 + fileNameLength);
+
+    if (fileName === targetName) {
+      const localNameLength = buffer.readUInt16LE(localHeaderOffset + 26);
+      const localExtraLength = buffer.readUInt16LE(localHeaderOffset + 28);
+      const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
+      const data = buffer.subarray(dataStart, dataStart + compressedSize);
+      if (compressionMethod === 0) return data.toString("utf8");
+      if (compressionMethod === 8) return zlib.inflateRawSync(data).toString("utf8");
+      return "";
+    }
+
+    offset += 46 + fileNameLength + extraLength + commentLength;
+  }
+
+  return "";
+}
+
+function decodeXmlText(value) {
+  return String(value)
+    .replace(/<w:tab\/>/g, "\t")
+    .replace(/<w:br\/>/g, "\n")
+    .replace(/<\/w:p>/g, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/\s+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function extractDocxText(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  const documentXml = readDocxEntry(buffer, "word/document.xml");
+  return decodeXmlText(documentXml);
+}
+
+function decodePdfLiteral(value) {
+  return value
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\\(/g, "(")
+    .replace(/\\\)/g, ")")
+    .replace(/\\\\/g, "\\");
+}
+
+function extractPdfText(filePath) {
+  const raw = fs.readFileSync(filePath).toString("latin1");
+  const textParts = [];
+  const literalPattern = /\((?:\\.|[^\\)])*\)\s*Tj/g;
+  for (const match of raw.matchAll(literalPattern)) {
+    textParts.push(decodePdfLiteral(match[0].replace(/\)\s*Tj$/, "").slice(1)));
+  }
+
+  if (textParts.join(" ").trim().length < 80) {
+    const readable = raw
+      .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, " ")
+      .split(/\s{2,}/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 3 && !/^(obj|endobj|stream|endstream|xref|trailer)$/i.test(part));
+    textParts.push(...readable);
+  }
+
+  return textParts.join("\n").replace(/\s{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function extractReadableBinaryText(filePath) {
+  return fs.readFileSync(filePath)
+    .toString("latin1")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, " ")
+    .split(/\s{2,}/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 3)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function extractResumeText(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) {
+    throw new Error("Upload a resume before generating sample content.");
+  }
+
+  const ext = path.extname(filePath).toLowerCase();
+  if ([".txt", ".md"].includes(ext)) {
+    return fs.readFileSync(filePath, "utf8").trim();
+  }
+  if (ext === ".rtf") {
+    return fs.readFileSync(filePath, "utf8")
+      .replace(/\\'[0-9a-f]{2}/gi, " ")
+      .replace(/\\[a-z]+\d* ?/gi, " ")
+      .replace(/[{}]/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+  if (ext === ".docx") return extractDocxText(filePath);
+  if (ext === ".pdf") return extractPdfText(filePath);
+  if (ext === ".doc") return extractReadableBinaryText(filePath);
+
+  throw new Error("This resume format cannot be read yet. Upload a PDF, DOC, DOCX, TXT, or MD resume.");
+}
+
 function resolveBrowserProfileDir() {
   const config = loadSavedConfig();
   const profileDir = config.browserProfileDir || DEFAULTS.browserProfileDir;
@@ -593,6 +724,80 @@ function decryptKey(encoded) {
   }
   return fallbackDecrypt(encoded);
 }
+
+function readStoredApiKey() {
+  const ksPath = getKeyStorePath();
+  if (!fs.existsSync(ksPath)) return "";
+  const encrypted = fs.readFileSync(ksPath, "utf8");
+  const decrypted = decryptKey(encrypted);
+  if (!decrypted) return "";
+  try {
+    return JSON.parse(decrypted).key || "";
+  } catch {
+    return "";
+  }
+}
+
+function getConfigWithAIKey() {
+  const config = loadSavedConfig();
+  config.ai = { ...DEFAULTS.ai, ...(config.ai || {}) };
+  if (config.ai.mode === "byok") {
+    config.ai.apiKey = readStoredApiKey();
+  }
+  return config;
+}
+
+function getAIConfigurationMessage(config) {
+  const ai = config.ai || {};
+  if (ai.mode === "hosted") {
+    return ai.authToken ? "" : "AI is not configured. Open Settings and connect built-in AI first.";
+  }
+  if (ai.mode === "byok") {
+    if (!ai.apiKey) return "AI is not configured. Open Settings and save your API key first.";
+    if (!ai.byokModel) return "AI is not configured. Open Settings and enter an AI model first.";
+    return "";
+  }
+  return "AI is not configured. Open Settings and choose an AI mode first.";
+}
+
+ipcMain.handle("generate-resume-artifacts", async (_, { resumePath }) => {
+  try {
+    const config = getConfigWithAIKey();
+    const aiMessage = getAIConfigurationMessage(config);
+    if (aiMessage) return { success: false, message: aiMessage };
+
+    const extractedResume = extractResumeText(resumePath);
+    if (extractedResume.trim().length < 80) {
+      return {
+        success: false,
+        message: "Could not read enough text from this resume. Try uploading a DOCX or text-based PDF resume."
+      };
+    }
+
+    const { generateResumeArtifacts } = await import("../src/ai/ai-service.js");
+    const generated = await generateResumeArtifacts({
+      config,
+      resumeText: extractedResume
+    });
+
+    const generatedDir = path.join(getUserDataPath(), "generated");
+    fs.mkdirSync(generatedDir, { recursive: true });
+    const coverLetterPath = path.join(generatedDir, "sample-cover-letter-from-resume.txt");
+    fs.writeFileSync(coverLetterPath, `${generated.sampleCoverLetter.trim()}\n`);
+
+    return {
+      success: true,
+      resumeSummary: generated.resumeSummary,
+      coverLetterPath,
+      coverLetterPreview: generated.sampleCoverLetter
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message || "Could not generate sample content from the resume."
+    };
+  }
+});
 
 ipcMain.handle("save-ai-config", async (_, aiConfig) => {
   const filePath = path.join(getUserDataPath(), "config.json");

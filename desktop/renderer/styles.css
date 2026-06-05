@@ -365,6 +365,10 @@ textarea:focus {
   margin: 20px 0;
 }
 
+.document-actions {
+  margin: 10px 0 0;
+}
+
 button {
   background: var(--card-soft);
   color: var(--text);

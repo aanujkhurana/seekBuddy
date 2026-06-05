@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("seekApp", {
   saveConfig: (config) => ipcRenderer.invoke("save-config", config),
   saveConfigOnClose: (config) => ipcRenderer.send("save-config-on-close", config),
   selectFile: (options) => ipcRenderer.invoke("select-file", options),
+  generateResumeArtifacts: (payload) => ipcRenderer.invoke("generate-resume-artifacts", payload),
 
   startAutomation: () => ipcRenderer.invoke("start-automation"),
   stopAutomation: () => ipcRenderer.invoke("stop-automation"),

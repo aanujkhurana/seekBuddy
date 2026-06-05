@@ -15,10 +15,17 @@ function trimForPrompt(text, maxChars) {
 
 function parseJsonSafely(text) {
   try {
-    return JSON.parse(text.replace(/```json|```/g, "").trim());
+    return JSON.parse(String(text).replace(/```json|```/g, "").trim());
   } catch {
     return null;
   }
+}
+
+function unwrapTextOutput(output) {
+  if (typeof output === "string") return output;
+  if (output && typeof output.output === "string") return output.output;
+  if (output && typeof output.text === "string") return output.text;
+  return "";
 }
 
 function normalizeResumeSummary(raw) {
@@ -158,6 +165,52 @@ export function createTemplateCoverLetter({ config, job }) {
   );
 
   return paragraphs.join("\n");
+}
+
+// ---- Resume Artifacts ----
+
+export async function generateResumeArtifacts({ config, resumeText }) {
+  const client = createClient(config);
+  const trimmedResume = trimForPrompt(resumeText || "", 18000);
+
+  if (!trimmedResume.trim()) {
+    throw new Error("Resume text is empty.");
+  }
+
+  const system = [
+    SYSTEM_PROMPT,
+    "Create reusable application materials from the resume only.",
+    "Do not invent employers, years, credentials, tools, education, work rights, achievements, names, phone numbers, links, or certifications.",
+    "Return JSON only with this schema: { \"resumeSummary\": string[], \"sampleCoverLetter\": string }.",
+    "resumeSummary must contain 5 to 8 concise first-person-safe bullet points without bullet characters.",
+    "sampleCoverLetter must be a generic cover letter reference, 170 to 240 words, no recipient address, no fake company, no signature block, no placeholders."
+  ].join(" ");
+
+  const prompt = [
+    "Resume text:",
+    trimmedResume,
+    "",
+    "Generate the JSON now."
+  ].join("\n");
+
+  const output = unwrapTextOutput(await client.generateText({
+    system,
+    prompt,
+    maxTokens: 1000
+  }));
+  const parsed = parseJsonSafely(output);
+
+  if (!parsed || !Array.isArray(parsed.resumeSummary) || typeof parsed.sampleCoverLetter !== "string") {
+    throw new Error("AI returned an unexpected format. Try again after checking AI settings.");
+  }
+
+  return {
+    resumeSummary: parsed.resumeSummary
+      .map((item) => String(item).replace(/^[-*•]\s*/, "").trim())
+      .filter(Boolean)
+      .slice(0, 8),
+    sampleCoverLetter: parsed.sampleCoverLetter.trim()
+  };
 }
 
 // ---- Screening Answer ----
