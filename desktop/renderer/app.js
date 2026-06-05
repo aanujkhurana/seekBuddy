@@ -31,6 +31,10 @@ const hostedSettings = document.getElementById("hostedSettings");
 const byokSettings = document.getElementById("byokSettings");
 const hostedModelSelect = document.getElementById("hostedModel");
 const backendUrlInput = document.getElementById("backendUrl");
+const coverLetterWordLimitInput = document.getElementById("coverLetterWordLimit");
+const coverLetterToneInput = document.getElementById("coverLetterToneInput");
+const addCoverLetterToneBtn = document.getElementById("addCoverLetterTone");
+const coverLetterToneList = document.getElementById("coverLetterToneList");
 const byokProviderSelect = document.getElementById("byokProvider");
 const byokModelInput = document.getElementById("byokModel");
 const apiKeyInput = document.getElementById("apiKeyInput");
@@ -57,6 +61,7 @@ let loginValidated = false;
 let loginInProgress = false;
 let jobTitles = [];
 let searchLocations = [];
+let coverLetterTones = ["professional"];
 let hasAppliedJobs = false;
 let resumeGenerationTarget = "";
 
@@ -169,6 +174,15 @@ function renderSearchLists() {
       renderSearchLists();
     }
   });
+
+  renderChipList({
+    values: coverLetterTones,
+    container: coverLetterToneList,
+    onRemove: (index) => {
+      coverLetterTones = coverLetterTones.filter((_, itemIndex) => itemIndex !== index);
+      renderSearchLists();
+    }
+  });
 }
 
 function addJobTitle() {
@@ -183,6 +197,13 @@ function addSearchLocation() {
   searchLocationInput.value = "";
   renderSearchLists();
   searchLocationInput.focus();
+}
+
+function addCoverLetterTone() {
+  coverLetterTones = addUniqueValue(coverLetterTones, coverLetterToneInput.value);
+  coverLetterToneInput.value = "";
+  renderSearchLists();
+  coverLetterToneInput.focus();
 }
 
 function setStatus(state) {
@@ -204,6 +225,8 @@ function updateLogsEmptyState() {
 function getConfig() {
   const titlesForConfig = addUniqueValue(jobTitles, jobTitleInput.value);
   const locationsForConfig = addUniqueValue(searchLocations, searchLocationInput.value);
+  const tonesForConfig = addUniqueValue(coverLetterTones, coverLetterToneInput.value);
+  const coverLetterWordLimit = Math.min(Math.max(Number(coverLetterWordLimitInput.value) || 280, 120), 500);
 
   return {
     email: "",
@@ -214,7 +237,13 @@ function getConfig() {
     reviewBeforeApply: reviewBeforeApplyInput.checked,
     resumePath,
     coverLetterPath,
-    resumeSummary: (resumeSummaryInput?.value || "").trim().split("\n").map(s => s.trim()).filter(Boolean)
+    resumeSummary: (resumeSummaryInput?.value || "").trim().split("\n").map(s => s.trim()).filter(Boolean),
+    coverLetter: {
+      tone: tonesForConfig.length ? tonesForConfig.join(", ") : "professional",
+      tones: tonesForConfig.length ? tonesForConfig : ["professional"],
+      wordLimit: coverLetterWordLimit,
+      maxWordLimit: 500
+    }
   };
 }
 
@@ -226,13 +255,24 @@ function appendLog(message) {
 
 async function loadConfig() {
   const config = await window.seekApp.loadConfig();
-  if (!config) return;
+  if (!config) {
+    renderSearchLists();
+    coverLetterWordLimitInput.value = 280;
+    updateResumeGenerationState();
+    return;
+  }
 
   jobTitles = splitSearchValues(config.keywords);
   searchLocations = splitSearchValues(config.location);
+  const savedCoverLetter = config.coverLetter || {};
+  coverLetterTones = Array.isArray(savedCoverLetter.tones)
+    ? savedCoverLetter.tones.filter(Boolean)
+    : splitSearchValues(savedCoverLetter.tone || "professional");
+  if (!coverLetterTones.length) coverLetterTones = ["professional"];
   renderSearchLists();
   maxApplicationsInput.value = config.maxApplications || 10;
   reviewBeforeApplyInput.checked = Boolean(config.reviewBeforeApply);
+  coverLetterWordLimitInput.value = Math.min(Math.max(Number(savedCoverLetter.wordLimit) || 280, 120), 500);
 
   resumePath = config.resumePath || "";
   coverLetterPath = config.coverLetterPath || "";
@@ -374,6 +414,7 @@ async function saveAISettings() {
     await window.seekApp.deleteApiKey();
   }
 
+  await window.seekApp.saveConfig(getConfig());
   aiStatus.textContent = "AI settings saved.";
   updateAIConfiguredState();
   appendLog("AI settings saved.");
@@ -551,6 +592,17 @@ searchLocationInput.addEventListener("keydown", (event) => {
     event.preventDefault();
     addSearchLocation();
   }
+});
+
+addCoverLetterToneBtn.addEventListener("click", addCoverLetterTone);
+coverLetterToneInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addCoverLetterTone();
+  }
+});
+coverLetterWordLimitInput.addEventListener("blur", () => {
+  coverLetterWordLimitInput.value = Math.min(Math.max(Number(coverLetterWordLimitInput.value) || 280, 120), 500);
 });
 
 settingsToggle.addEventListener("click", toggleSettings);

@@ -11,6 +11,11 @@ export const DEFAULTS = Object.freeze({
   resumePath: "",
   coverLetterPath: "",
   resumeSummary: [],
+  coverLetter: {
+    tone: "professional",
+    wordLimit: 280,
+    maxWordLimit: 500,
+  },
   keywords: "",
   location: "",
   maxApplications: 10,

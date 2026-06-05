@@ -55,19 +55,22 @@ export async function generateCoverLetter({ config, job }) {
   const client = createClient(config);
   const resumeText = normalizeResumeSummary(config.resumeSummary).join(" ");
   const jobDescription = trimForPrompt(job.description || "", 12000);
+  const coverLetterTone = config.coverLetter?.tone || "professional";
+  const coverLetterWordLimit = Math.min(Math.max(Number(config.coverLetter?.wordLimit) || 280, 120), 500);
 
   try {
     const system = [
       SYSTEM_PROMPT,
       "You are writing a tailored cover letter. Do not include headings, bullet points, signoff, name, email, phone, or website — the application will append the footer automatically.",
-      "Keep it between 180 and 280 words. Use a confident, natural tone."
+      `Keep it under ${coverLetterWordLimit} words. Use this tone guidance: ${coverLetterTone}.`
     ].join(" ");
 
     const prompt = [
       `Job Title: ${job.title || config.jobTitle || config.keywords || "Role"}`,
       `Company: ${job.company || "Unknown"}`,
       resumeText ? `Resume Summary: ${resumeText}` : "",
-      config.coverLetter?.tone ? `Tone: ${config.coverLetter.tone}` : "",
+      `Tone: ${coverLetterTone}`,
+      `Word limit: ${coverLetterWordLimit}`,
       "",
       `Job Description:\n${jobDescription}`,
       "",
@@ -80,14 +83,14 @@ export async function generateCoverLetter({ config, job }) {
         company: job.company,
         jobDescription,
         resumeText,
-        tone: config.coverLetter?.tone || "professional",
-        wordLimit: config.coverLetter?.wordLimit || 280
+        tone: coverLetterTone,
+        wordLimit: coverLetterWordLimit
       });
       if (res.coverLetter) return res.coverLetter;
     }
 
     if (client.generateText) {
-      return await client.generateText({ system, prompt, maxTokens: 800 });
+      return await client.generateText({ system, prompt, maxTokens: Math.max(500, Math.ceil(coverLetterWordLimit * 2.5)) });
     }
 
     throw new Error("Provider does not support text generation.");
