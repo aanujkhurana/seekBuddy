@@ -48,6 +48,8 @@ const statusLabel = document.getElementById("statusLabel");
 const startBtn = document.getElementById("start");
 const stopBtn = document.getElementById("stop");
 const continueBtn = document.getElementById("continueBtn");
+const aiNotReadyHint = document.getElementById("aiNotReadyHint");
+const aiHintSettingsLink = document.getElementById("aiHintSettingsLink");
 const appliedList = document.getElementById("appliedList");
 const clearAppliedBtn = document.getElementById("clearApplied");
 const exportJobsBtn = document.getElementById("exportJobs");
@@ -402,6 +404,8 @@ function updateAIConfiguredState() {
   aiSettingsAlert.style.display = configured ? "none" : "";
   aiSettingsState.className = "settings-state " + (configured ? "ok" : "warn");
   aiSettingsState.textContent = configured ? "Configured" : "Needs setup";
+  startBtn.disabled = !configured;
+  aiNotReadyHint.style.display = configured ? "none" : "";
   updateResumeGenerationState();
 }
 
@@ -783,6 +787,11 @@ byokProviderSelect.addEventListener("change", () => {
   populateModelSelect(byokProviderSelect.value);
 });
 apiKeyInput.addEventListener("input", updateAIConfiguredState);
+
+aiHintSettingsLink.addEventListener("click", (e) => {
+  e.preventDefault();
+  openSettings();
+});
 
 toggleKeyBtn.addEventListener("click", () => {
   keyVisible = !keyVisible;

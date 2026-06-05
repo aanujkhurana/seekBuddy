@@ -520,6 +520,30 @@ select:focus {
   margin: 8px 0 0;
 }
 
+.hint-link {
+  display: inline;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  color: var(--primary);
+  font: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.hint-link:hover {
+  border: none;
+  color: #7dd3fc;
+}
+
+.ai-not-ready-hint {
+  text-align: center;
+  margin: 10px 0 0;
+}
+
 .status-row {
   display: flex;
   align-items: center;
