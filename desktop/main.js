@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, safeStorage } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, safeStorage, shell } from "electron";
 import path from "path";
 import os from "os";
 import { fileURLToPath } from "url";
@@ -15,6 +15,8 @@ let mainWindow;
 let runningProcess = null;
 let loginProcess = null;
 let loginSessionValidated = false;
+let runningStopTimer = null;
+let runningStopFallbackTimer = null;
 
 function getUserDataPath() {
   const dir = path.join(app.getPath("userData"), "seek-apply-assistant");
@@ -285,10 +287,14 @@ ipcMain.handle("start-automation", async () => {
   proc.stderr.on("data", (data) => send("automation-log", data.toString()));
 
   proc.on("close", (code) => {
+    if (runningStopTimer) clearTimeout(runningStopTimer);
+    if (runningStopFallbackTimer) clearTimeout(runningStopFallbackTimer);
+    runningStopTimer = null;
+    runningStopFallbackTimer = null;
     send("automation-log", `[INFO] Process exited with code ${code}\n`);
     send("automation-stopped");
     send("automation-status", "idle");
-    runningProcess = null;
+    if (runningProcess === proc) runningProcess = null;
     send("applied-jobs-updated");
   });
 
@@ -300,17 +306,36 @@ ipcMain.handle("stop-automation", async () => {
   if (!runningProcess) {
     return { success: false, message: "No automation is running." };
   }
-  runningProcess.kill("SIGTERM");
-  setTimeout(() => {
-    if (runningProcess && !runningProcess.killed) {
-      runningProcess.kill("SIGKILL");
+
+  const proc = runningProcess;
+  send("automation-status", "stopped");
+  proc.kill("SIGTERM");
+
+  if (runningStopTimer) clearTimeout(runningStopTimer);
+  if (runningStopFallbackTimer) clearTimeout(runningStopFallbackTimer);
+
+  runningStopTimer = setTimeout(() => {
+    if (runningProcess === proc) {
+      send("automation-log", "[WARN] Stop is taking too long; forcing automation to close.\n");
+      proc.kill("SIGKILL");
     }
   }, 3000);
+
+  runningStopFallbackTimer = setTimeout(() => {
+    if (runningProcess === proc) {
+      send("automation-log", "[WARN] Automation did not confirm exit; returning app controls to idle.\n");
+      runningProcess = null;
+      send("automation-stopped");
+      send("automation-status", "idle");
+      send("applied-jobs-updated");
+    }
+  }, 6000);
+
   return { success: true };
 });
 
 ipcMain.handle("get-automation-status", async () => {
-  if (runningProcess && !runningProcess.killed) return "running";
+  if (runningProcess) return "running";
   return "idle";
 });
 
@@ -615,6 +640,65 @@ ipcMain.handle("clear-applied", async () => {
   return { success: true, output: "Applied history cleared." };
 });
 
+ipcMain.handle("open-job-url", async (_, url) => {
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return { success: false, message: "Job link is not a valid web URL." };
+    }
+    await shell.openExternal(parsed.toString());
+    return { success: true };
+  } catch {
+    return { success: false, message: "Could not open the original job link." };
+  }
+});
+
+ipcMain.handle("open-external-link", async (_, url) => {
+  try {
+    const parsed = new URL(url);
+    if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) {
+      return { success: false, message: "This link type is not supported." };
+    }
+    await shell.openExternal(parsed.toString());
+    return { success: true };
+  } catch {
+    return { success: false, message: "Could not open this link." };
+  }
+});
+
+ipcMain.handle("download-cover-letter", async (_, coverLetterPath) => {
+  const sourcePath = path.isAbsolute(coverLetterPath || "")
+    ? coverLetterPath
+    : path.resolve(ROOT, coverLetterPath || "");
+  const allowedRoots = [
+    path.resolve(ROOT),
+    path.resolve(getUserDataPath())
+  ];
+  const isAllowed = allowedRoots.some((root) =>
+    sourcePath === root || sourcePath.startsWith(`${root}${path.sep}`)
+  );
+
+  if (!coverLetterPath || !isAllowed || !fs.existsSync(sourcePath)) {
+    return { success: false, message: "Cover letter file is not available for this job." };
+  }
+
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Download Cover Letter",
+    defaultPath: path.basename(sourcePath),
+    filters: [
+      { name: "Text", extensions: ["txt"] },
+      { name: "All Files", extensions: ["*"] }
+    ]
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { success: false, message: "Download cancelled." };
+  }
+
+  fs.copyFileSync(sourcePath, result.filePath);
+  return { success: true, path: result.filePath };
+});
+
 // ---- Browser check ----
 
 ipcMain.handle("check-browsers", async () => {
@@ -780,18 +864,10 @@ ipcMain.handle("generate-resume-artifacts", async (_, { resumePath, target }) =>
       resumeText: extractedResume
     });
 
-    let coverLetterPath = "";
-    if (target === "coverLetter") {
-      const generatedDir = path.join(getUserDataPath(), "generated");
-      fs.mkdirSync(generatedDir, { recursive: true });
-      coverLetterPath = path.join(generatedDir, "sample-cover-letter-from-resume.txt");
-      fs.writeFileSync(coverLetterPath, `${generated.sampleCoverLetter.trim()}\n`);
-    }
-
     return {
       success: true,
       resumeSummary: target === "summary" ? generated.resumeSummary : [],
-      coverLetterPath,
+      coverLetterPath: "",
       coverLetterPreview: target === "coverLetter" ? generated.sampleCoverLetter : ""
     };
   } catch (error) {

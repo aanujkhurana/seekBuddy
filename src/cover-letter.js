@@ -38,6 +38,11 @@ export async function createCoverLetter({ config, job }) {
     }
   }
 
+  if (config.coverLetterText) {
+    logSuccess("Using saved cover letter text");
+    return cleanCoverLetterText(config.coverLetterText);
+  }
+
   const templateLetter = createTemplateCoverLetter({ config, job });
   const cleaned = cleanCoverLetterText(templateLetter);
   logSuccess("Template cover letter created");

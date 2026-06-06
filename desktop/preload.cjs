@@ -19,6 +19,9 @@ contextBridge.exposeInMainWorld("seekApp", {
   loadAppliedJobs: () => ipcRenderer.invoke("load-applied-jobs"),
   clearApplied: () => ipcRenderer.invoke("clear-applied"),
   exportJobs: () => ipcRenderer.invoke("export-jobs"),
+  openJobUrl: (url) => ipcRenderer.invoke("open-job-url", url),
+  openExternalLink: (url) => ipcRenderer.invoke("open-external-link", url),
+  downloadCoverLetter: (path) => ipcRenderer.invoke("download-cover-letter", path),
 
   checkBrowsers: () => ipcRenderer.invoke("check-browsers"),
   installBrowsers: () => ipcRenderer.invoke("install-browsers"),

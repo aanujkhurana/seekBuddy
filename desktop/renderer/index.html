@@ -11,7 +11,7 @@
       <div class="hero-row">
         <div>
           <h1>Seek Apply Assistant</h1>
-          <p>Configure your job search, run the assistant, and stop anytime.</p>
+          <p>Automate SEEK job applications with one click.</p>
         </div>
         <div class="header-actions">
           <div id="headerLoginBadge" class="session-badge header-session logged-out" data-login-badge>Not logged in</div>
@@ -77,11 +77,11 @@
       <div class="divider"></div>
 
       <h3 class="subheading"><span class="heading-icon" data-icon="mail"></span>Cover Letter</h3>
-      <button id="selectCoverLetter">Choose Cover Letter</button>
-      <p id="coverLetterPath">No cover letter selected</p>
-      <p class="hint">This cover letter is used as a reference. AI will write a tailored cover letter when available and fall back to this file if AI cannot connect.</p>
+      <label for="coverLetterText">Cover Letter</label>
+      <textarea id="coverLetterText" rows="6" placeholder="Paste your base cover letter here, or generate one from your uploaded resume."></textarea>
+      <p class="hint">This cover letter is used as a reference. AI will write a tailored cover letter when available and fall back to this text if AI cannot connect.</p>
       <div class="actions document-actions">
-        <button id="generateCoverLetterFromResume" class="primary" disabled>Generate Cover Letter from Resume</button>
+        <button id="generateCoverLetterFromResume" class="secondary-action" disabled>Generate Cover Letter from Resume</button>
       </div>
       <p id="coverLetterGenerationStatus" class="hint">Upload a resume to generate a sample cover letter with AI.</p>
 
@@ -91,7 +91,7 @@
       <textarea id="resumeSummary" rows="4" placeholder="e.g. 5 years React & TypeScript at two startups. Built design systems from scratch. Led a team of 3 frontend devs. Strong UX instincts."></textarea>
       <p class="hint">The AI uses this to tailor cover letters and screening answers. Each line becomes a bullet point.</p>
       <div class="actions document-actions">
-        <button id="generateSummaryFromResume" class="primary" disabled>Generate Summary from Resume</button>
+        <button id="generateSummaryFromResume" class="secondary-action" disabled>Generate Summary from Resume</button>
       </div>
       <p id="summaryGenerationStatus" class="hint">Upload a resume to generate a resume summary with AI.</p>
     </section>
@@ -221,6 +221,19 @@
         <div id="usageContent">
           <p class="hint">Connect to hosted AI to view usage stats.</p>
         </div>
+      </section>
+
+      <section class="card" id="helpSection">
+        <h2><span class="heading-icon" data-icon="mail"></span>Help</h2>
+        <p class="hint">Create an API key with one of these providers, then paste it into AI Settings.</p>
+        <div class="help-links">
+          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">OpenAI API keys</a>
+          <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">OpenRouter API keys</a>
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Gemini API keys</a>
+          <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noreferrer">DeepSeek API keys</a>
+          <a href="https://platform.minimax.io/docs/guides/quickstart" target="_blank" rel="noreferrer">MiniMax API keys</a>
+        </div>
+        <p class="hint support-copy">For feedback, bugs, or support, email <a href="mailto:aanujkhurana@gmail.com">aanujkhurana@gmail.com</a>.</p>
       </section>
     </section>
   </main>

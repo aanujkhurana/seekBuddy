@@ -17,7 +17,7 @@ const maxApplicationsInput = document.getElementById("maxApplications");
 const reviewBeforeApplyInput = document.getElementById("reviewBeforeApply");
 
 const resumePathText = document.getElementById("resumePath");
-const coverLetterPathText = document.getElementById("coverLetterPath");
+const coverLetterTextInput = document.getElementById("coverLetterText");
 const resumeSummaryInput = document.getElementById("resumeSummary");
 const generateCoverLetterFromResumeBtn = document.getElementById("generateCoverLetterFromResume");
 const coverLetterGenerationStatus = document.getElementById("coverLetterGenerationStatus");
@@ -55,6 +55,7 @@ const exportJobsBtn = document.getElementById("exportJobs");
 
 let resumePath = "";
 let coverLetterPath = "";
+let coverLetterText = "";
 let keyVisible = false;
 let automationRunning = false;
 let hostedRegistered = false;
@@ -321,7 +322,8 @@ function getConfig() {
     maxApplications: Number(maxApplicationsInput.value) || 10,
     reviewBeforeApply: reviewBeforeApplyInput.checked,
     resumePath,
-    coverLetterPath,
+    coverLetterPath: "",
+    coverLetterText: (coverLetterTextInput?.value || "").trim(),
     resumeSummary: (resumeSummaryInput?.value || "").trim().split("\n").map(s => s.trim()).filter(Boolean),
     coverLetter: {
       tone: tonesForConfig.length ? tonesForConfig.join(", ") : "professional",
@@ -366,8 +368,9 @@ async function loadConfig() {
 
   resumePath = config.resumePath || "";
   coverLetterPath = config.coverLetterPath || "";
+  coverLetterText = config.coverLetterText || "";
   resumePathText.textContent = resumePath ? `Resume uploaded: ${resumePath}` : "No resume selected";
-  coverLetterPathText.textContent = coverLetterPath || "No cover letter selected";
+  coverLetterTextInput.value = coverLetterText;
   if (resumeSummaryInput) resumeSummaryInput.value = Array.isArray(config.resumeSummary) ? config.resumeSummary.join("\n") : (config.resumeSummary || "");
   updateResumeGenerationState();
 }
@@ -452,12 +455,20 @@ function updateResumeGenerationState(messages = {}) {
   const hasResume = Boolean(resumePath);
   const aiConfigured = isAIConfigured();
   const isBusy = Boolean(resumeGenerationTarget);
+  const hasCoverLetterText = Boolean((coverLetterTextInput?.value || "").trim());
+  const hasResumeSummary = Boolean((resumeSummaryInput?.value || "").trim());
 
   generateCoverLetterFromResumeBtn.disabled = isBusy || !hasResume || !aiConfigured;
   generateSummaryFromResumeBtn.disabled = isBusy || !hasResume || !aiConfigured;
+  generateCoverLetterFromResumeBtn.style.display = hasCoverLetterText ? "none" : "";
+  generateSummaryFromResumeBtn.style.display = hasResumeSummary ? "none" : "";
 
-  coverLetterGenerationStatus.textContent = messages.coverLetter || getResumeGenerationMessage("coverLetter");
-  summaryGenerationStatus.textContent = messages.summary || getResumeGenerationMessage("summary");
+  coverLetterGenerationStatus.textContent = hasCoverLetterText
+    ? "Cover letter text is present. Clear it to generate a new one from your resume."
+    : (messages.coverLetter || getResumeGenerationMessage("coverLetter"));
+  summaryGenerationStatus.textContent = hasResumeSummary
+    ? "Resume summary is present. Clear it to generate a new one from your resume."
+    : (messages.summary || getResumeGenerationMessage("summary"));
 
   if (resumeGenerationTarget === "coverLetter") {
     coverLetterGenerationStatus.textContent = "Generating a sample cover letter from your uploaded resume...";
@@ -547,6 +558,7 @@ function renderAppliedJobs(jobs) {
     item.className = "applied-item";
 
     const info = document.createElement("div");
+    info.className = "applied-info";
 
     const title = document.createElement("div");
     title.className = "job-title";
@@ -570,9 +582,47 @@ function renderAppliedJobs(jobs) {
     status.className = "job-status " + st;
     status.textContent = st.replace("_", " ");
 
+    const right = document.createElement("div");
+    right.className = "applied-actions";
+    right.appendChild(status);
+
+    if (job.url) {
+      const openJob = document.createElement("button");
+      openJob.type = "button";
+      openJob.className = "applied-action";
+      openJob.textContent = "Open Job";
+      openJob.addEventListener("click", () => openAppliedJobUrl(job.url));
+      right.appendChild(openJob);
+    }
+
+    if (job.coverLetterPath) {
+      const downloadCoverLetter = document.createElement("button");
+      downloadCoverLetter.type = "button";
+      downloadCoverLetter.className = "applied-action";
+      downloadCoverLetter.textContent = "Download Cover Letter";
+      downloadCoverLetter.addEventListener("click", () => downloadAppliedCoverLetter(job.coverLetterPath));
+      right.appendChild(downloadCoverLetter);
+    }
+
     item.appendChild(info);
-    item.appendChild(status);
+    item.appendChild(right);
     appliedList.appendChild(item);
+  }
+}
+
+async function openAppliedJobUrl(url) {
+  const result = await window.seekApp.openJobUrl(url);
+  if (!result.success) {
+    appendLog(`[WARN] ${result.message || "Could not open job link."}`);
+  }
+}
+
+async function downloadAppliedCoverLetter(coverLetterPath) {
+  const result = await window.seekApp.downloadCoverLetter(coverLetterPath);
+  if (result.success) {
+    appendLog(`Downloaded cover letter to ${result.path}`);
+  } else if (result.message !== "Download cancelled.") {
+    appendLog(`[WARN] ${result.message || "Could not download cover letter."}`);
   }
 }
 
@@ -591,17 +641,8 @@ document.getElementById("selectResume").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("selectCoverLetter").addEventListener("click", async () => {
-  const file = await window.seekApp.selectFile({
-    filters: [
-      { name: "Documents", extensions: ["pdf", "doc", "docx"] }
-    ]
-  });
-  if (file) {
-    coverLetterPath = file;
-    coverLetterPathText.textContent = file;
-  }
-});
+coverLetterTextInput.addEventListener("input", updateResumeGenerationState);
+resumeSummaryInput.addEventListener("input", updateResumeGenerationState);
 
 async function generateFromResume(kind) {
   if (!resumePath) {
@@ -651,8 +692,9 @@ async function generateFromResume(kind) {
     }
 
     if (kind === "coverLetter") {
-      coverLetterPath = result.coverLetterPath || coverLetterPath;
-      coverLetterPathText.textContent = coverLetterPath || "No cover letter selected";
+      coverLetterTextInput.value = result.coverLetterPreview || "";
+      coverLetterText = coverLetterTextInput.value;
+      coverLetterPath = "";
       finalMessages.coverLetter = "Generated sample cover letter from resume. Review it before applying.";
     }
 
@@ -660,7 +702,7 @@ async function generateFromResume(kind) {
 
     updateResumeGenerationState(finalMessages);
     appendLog(kind === "coverLetter"
-      ? `[OK] Generated sample cover letter: ${coverLetterPath}`
+      ? "[OK] Generated sample cover letter from uploaded resume."
       : "[OK] Generated resume summary from uploaded resume.");
   } catch (error) {
     finalMessages[kind] = error.message || (kind === "coverLetter"
@@ -711,6 +753,14 @@ coverLetterWordLimitInput.addEventListener("blur", () => {
 
 settingsToggle.addEventListener("click", toggleSettings);
 settingsBack.addEventListener("click", closeSettings);
+
+document.querySelectorAll("#helpSection a[href]").forEach((link) => {
+  link.addEventListener("click", async (event) => {
+    event.preventDefault();
+    const result = await window.seekApp.openExternalLink(link.href);
+    if (!result.success) appendLog(`[WARN] ${result.message || "Could not open help link."}`);
+  });
+});
 
 async function openSeekLogin() {
   await window.seekApp.saveConfig(getConfig());
@@ -771,7 +821,7 @@ document.getElementById("stop").addEventListener("click", async () => {
 document.getElementById("continueBtn").addEventListener("click", async () => {
   const result = await window.seekApp.sendStdin("\n");
   if (result.success) {
-    appendLog("[OK] Continued.");
+    appendLog("[OK] Completed.");
   } else {
     appendLog("[WARN] No running process to send input to.");
   }

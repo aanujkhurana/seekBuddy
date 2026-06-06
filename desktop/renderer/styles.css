@@ -428,6 +428,18 @@ button.primary:hover {
   border-color: #7dd3fc;
 }
 
+button.secondary-action {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.55);
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+button.secondary-action:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: #fbbf24;
+}
+
 button.danger {
   background: rgba(251, 113, 133, 0.12);
   border-color: var(--danger);
@@ -460,6 +472,23 @@ pre {
 
 .controls-logs-card #start {
   min-width: 360px;
+}
+
+.controls-logs-card #start:hover {
+  animation: startGlow 1.4s ease-in-out infinite;
+}
+
+@keyframes startGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(125, 211, 252, 0.95),
+      0 0 18px rgba(56, 189, 248, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(125, 211, 252, 0.95),
+      0 0 34px rgba(56, 189, 248, 0.8);
+  }
 }
 
 .logs-empty {
@@ -622,7 +651,8 @@ select:disabled:hover {
 .applied-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 14px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
@@ -637,6 +667,10 @@ select:disabled:hover {
   color: var(--text);
 }
 
+.applied-info {
+  min-width: 0;
+}
+
 .applied-item .job-meta {
   color: var(--muted);
   font-size: 12px;
@@ -648,6 +682,30 @@ select:disabled:hover {
   border-radius: 999px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.applied-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  max-width: 330px;
+}
+
+.applied-action {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.28);
+  color: #7dd3fc;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.applied-action:hover {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: var(--primary);
 }
 
 .job-status.prepared {
@@ -712,4 +770,38 @@ select:disabled:hover {
   font-size: 11px;
   padding: 3px 10px;
   border-radius: 999px;
+}
+
+.help-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.help-links a,
+.support-copy a {
+  color: #7dd3fc;
+  text-decoration: none;
+}
+
+.help-links a {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.08);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.help-links a:hover,
+.support-copy a:hover {
+  color: #bae6fd;
+  border-color: var(--primary);
+}
+
+.support-copy {
+  margin-top: 14px;
 }

@@ -10,6 +10,7 @@ export const DEFAULTS = Object.freeze({
   password: "",
   resumePath: "",
   coverLetterPath: "",
+  coverLetterText: "",
   resumeSummary: [],
   coverLetter: {
     tone: "professional",
