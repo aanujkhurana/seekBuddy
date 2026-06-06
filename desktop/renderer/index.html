@@ -36,25 +36,37 @@
     </section>
 
     <section class="card" data-login-required data-main-page>
-      <h2><span class="heading-icon" data-icon="sliders"></span>Job Search Settings</h2>
-
       <label for="jobTitleInput">JOB TITLE</label>
       <div class="add-row">
-        <input id="jobTitleInput" placeholder="Enter your job title" />
+        <input id="jobTitleInput" placeholder="Enter your job title and press enter" />
         <button id="addJobTitle" class="icon-btn" aria-label="Add job title" title="Add job title">+</button>
       </div>
       <div id="jobTitleList" class="chip-list"></div>
-      <p class="hint">Add multiple job titles to search each title separately, for example Frontend Developer and React Developer.</p>
+      <p class="hint">Add multiple job titles to search each title separately.</p>
 
       <div class="divider"></div>
 
       <label for="searchLocationInput">LOCATION</label>
       <div class="add-row">
-        <input id="searchLocationInput" placeholder="Enter desired work locations" />
+        <input id="searchLocationInput" placeholder="Enter desired work location and press enter" />
         <button id="addLocation" class="icon-btn" aria-label="Add location" title="Add location">+</button>
       </div>
       <div id="locationList" class="chip-list"></div>
       <p class="hint">Add multiple locations to search every job title in every location. Use Remote as a location if needed.</p>
+
+      <div class="divider"></div>
+
+      <label for="coverLetterWordLimit">Cover letter word limit</label>
+      <input id="coverLetterWordLimit" type="number" min="120" max="500" value="280" />
+      <p class="hint">Default is 280 words. Maximum is 500 words.</p>
+
+      <label for="coverLetterToneInput">Tone (max 5)</label>
+      <div class="add-row">
+        <input id="coverLetterToneInput" placeholder="friendly, humanize, direct, confident" />
+        <button id="addCoverLetterTone" class="icon-btn" aria-label="Add cover letter tone" title="Add cover letter tone">+</button>
+      </div>
+      <div id="coverLetterToneList" class="chip-list"></div>
+      <p class="hint">Add up to 5 writing styles the AI should follow, for example friendly, humanize, direct, confident, or tailored.</p>
 
       <div class="divider"></div>
 
@@ -65,35 +77,6 @@
         <input id="reviewBeforeApply" type="checkbox" checked />
         <span>Review before applying</span>
       </label>
-    </section>
-
-    <section class="card" data-login-required data-main-page>
-      <h2><span class="heading-icon" data-icon="folder"></span>Documents</h2>
-
-      <h3 class="subheading"><span class="heading-icon" data-icon="fileText"></span>Resume</h3>
-      <button id="selectResume">Choose Resume</button>
-      <p id="resumePath">No resume selected</p>
-
-      <div class="divider"></div>
-
-      <h3 class="subheading"><span class="heading-icon" data-icon="mail"></span>Cover Letter</h3>
-      <label for="coverLetterText">Cover Letter</label>
-      <textarea id="coverLetterText" rows="6" placeholder="Paste your base cover letter here, or generate one from your uploaded resume."></textarea>
-      <p class="hint">This cover letter is used as a reference. AI will write a tailored cover letter when available and fall back to this text if AI cannot connect.</p>
-      <div class="actions document-actions">
-        <button id="generateCoverLetterFromResume" class="secondary-action" disabled>Generate Cover Letter from Resume</button>
-      </div>
-      <p id="coverLetterGenerationStatus" class="hint">Upload a resume to generate a sample cover letter with AI.</p>
-
-      <div class="divider"></div>
-
-      <label for="resumeSummary">Resume Summary — paste key experience points for AI context</label>
-      <textarea id="resumeSummary" rows="4" placeholder="e.g. 5 years React & TypeScript at two startups. Built design systems from scratch. Led a team of 3 frontend devs. Strong UX instincts."></textarea>
-      <p class="hint">The AI uses this to tailor cover letters and screening answers. Each line becomes a bullet point.</p>
-      <div class="actions document-actions">
-        <button id="generateSummaryFromResume" class="secondary-action" disabled>Generate Summary from Resume</button>
-      </div>
-      <p id="summaryGenerationStatus" class="hint">Upload a resume to generate a resume summary with AI.</p>
     </section>
 
     <section class="card controls-logs-card" data-login-required data-main-page>
@@ -143,6 +126,35 @@
         <p class="hint login-help">SEEK opens in a visible browser. Choose the email login option and sign in there; the app unlocks automatically after the session is validated.</p>
         <p class="hint login-help" data-login-status>Sign in manually before configuring applications. Your SEEK browser session is stored locally and can survive app restarts until SEEK expires it.</p>
       </section>
+
+    <section class="card">
+      <h2><span class="heading-icon" data-icon="folder"></span>Documents</h2>
+
+      <h3 class="subheading"><span class="heading-icon" data-icon="fileText"></span>Resume</h3>
+      <button id="selectResume">Choose Resume</button>
+      <p id="resumePath">No resume selected</p>
+
+      <div class="divider"></div>
+
+      <h3 class="subheading"><span class="heading-icon" data-icon="mail"></span>Cover Letter</h3>
+      <label for="coverLetterText">Cover Letter</label>
+      <textarea id="coverLetterText" rows="6" placeholder="Paste your base cover letter here, or generate one from your uploaded resume."></textarea>
+      <p class="hint">This cover letter is used as a reference. AI will write a tailored cover letter when available and fall back to this text if AI cannot connect.</p>
+      <div class="actions document-actions">
+        <button id="generateCoverLetterFromResume" class="secondary-action" disabled>Generate Cover Letter from Resume</button>
+      </div>
+      <p id="coverLetterGenerationStatus" class="hint">Upload a resume to generate a sample cover letter with AI.</p>
+
+      <div class="divider"></div>
+
+      <label for="resumeSummary">Resume Summary — paste key experience points for AI context</label>
+      <textarea id="resumeSummary" rows="4" placeholder="e.g. 5 years React & TypeScript at two startups. Built design systems from scratch. Led a team of 3 frontend devs. Strong UX instincts."></textarea>
+      <p class="hint">The AI uses this to tailor cover letters and screening answers. Each line becomes a bullet point.</p>
+      <div class="actions document-actions">
+        <button id="generateSummaryFromResume" class="secondary-action" disabled>Generate Summary from Resume</button>
+      </div>
+      <p id="summaryGenerationStatus" class="hint">Upload a resume to generate a resume summary with AI.</p>
+    </section>
 
       <section class="card" id="aiSettingsCard">
         <div class="card-title-row">
@@ -200,20 +212,6 @@
           </div>
           <p id="aiStatus" class="hint"></p>
         </div>
-
-        <div class="divider"></div>
-
-        <label for="coverLetterWordLimit">Cover letter word limit</label>
-        <input id="coverLetterWordLimit" type="number" min="120" max="500" value="280" />
-        <p class="hint">Default is 280 words. Maximum is 500 words.</p>
-
-        <label for="coverLetterToneInput">Tone (max 5)</label>
-        <div class="add-row">
-          <input id="coverLetterToneInput" placeholder="friendly, humanize, direct, confident" />
-          <button id="addCoverLetterTone" class="icon-btn" aria-label="Add cover letter tone" title="Add cover letter tone">+</button>
-        </div>
-        <div id="coverLetterToneList" class="chip-list"></div>
-        <p class="hint">Add up to 5 writing styles the AI should follow, for example friendly, humanize, direct, confident, or tailored.</p>
       </section>
 
       <section class="card" id="usageSection">

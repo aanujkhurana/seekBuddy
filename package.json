@@ -38,12 +38,14 @@
       "package.json"
     ],
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg"
       ],
       "category": "public.app-category.productivity"
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis"
       ]
