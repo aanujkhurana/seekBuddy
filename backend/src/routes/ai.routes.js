@@ -196,13 +196,9 @@ router.post("/job-match", checkAIGenerationLimit, async (req, res) => {
 
     const cached = getCached(req.user.id, "jobMatchScore", cacheKey);
     if (cached) {
-      return res.json({
-        score: parseInt(cached.output, 10),
-        analysis: cached.output,
-        model: cached.model_used,
-        cached: true,
-        cost: cached.cost
-      });
+      let parsed;
+      try { parsed = JSON.parse(cached.output); } catch { parsed = { score: 0, matchingSkills: [], missingSkills: [], overallAssessment: cached.output }; }
+      return res.json({ ...parsed, model: cached.model_used, cached: true, cost: cached.cost });
     }
 
     const system = `You are a job matching assistant. Analyze how well a candidate's resume matches a job description. Return a JSON object with score (0-100), matchingSkills (array), missingSkills (array), and overallAssessment (string).`;

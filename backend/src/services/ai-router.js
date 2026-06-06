@@ -9,12 +9,12 @@ const PROVIDER_TIMEOUT_MS = 15000;
 const TASK_CHAIN = {
   coverLetter: [
     ["deepseek", "deepseek-chat"],
-    ["minimax", "minimax-01"],
+    ["minimax", "minimax-text-01"],
     ["gemini", "gemini-2.0-flash-lite"]
   ],
   screeningAnswer: [
     ["deepseek", "deepseek-chat"],
-    ["minimax", "minimax-01"],
+    ["minimax", "minimax-text-01"],
     ["gemini", "gemini-2.0-flash-lite"]
   ],
   jobMatchScore: [
@@ -22,7 +22,7 @@ const TASK_CHAIN = {
     ["gemini", "gemini-2.0-flash-lite"]
   ],
   resumeRewrite: [
-    ["minimax", "minimax-01"],
+    ["minimax", "minimax-text-01"],
     ["deepseek", "deepseek-chat"],
     ["openai", "gpt-4o-mini"]
   ],
@@ -32,12 +32,12 @@ const TASK_CHAIN = {
   ],
   summarize: [
     ["deepseek", "deepseek-chat"],
-    ["minimax", "minimax-01"],
+    ["minimax", "minimax-text-01"],
     ["gemini", "gemini-2.0-flash-lite"]
   ],
   generate: [
     ["deepseek", "deepseek-chat"],
-    ["minimax", "minimax-01"],
+    ["minimax", "minimax-text-01"],
     ["gemini", "gemini-2.0-flash-lite"]
   ]
 };

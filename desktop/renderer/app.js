@@ -23,6 +23,10 @@ const generateCoverLetterFromResumeBtn = document.getElementById("generateCoverL
 const coverLetterGenerationStatus = document.getElementById("coverLetterGenerationStatus");
 const generateSummaryFromResumeBtn = document.getElementById("generateSummaryFromResume");
 const summaryGenerationStatus = document.getElementById("summaryGenerationStatus");
+const contactNameInput = document.getElementById("contactNameInput");
+const contactEmailInput = document.getElementById("contactEmailInput");
+const contactPhoneInput = document.getElementById("contactPhoneInput");
+const contactWebsiteInput = document.getElementById("contactWebsiteInput");
 const logs = document.getElementById("logs");
 const logsEmpty = document.getElementById("logsEmpty");
 
@@ -325,6 +329,10 @@ function getConfig() {
     coverLetterPath: "",
     coverLetterText: (coverLetterTextInput?.value || "").trim(),
     resumeSummary: (resumeSummaryInput?.value || "").trim().split("\n").map(s => s.trim()).filter(Boolean),
+    contactName: (contactNameInput?.value || "").trim(),
+    contactEmail: (contactEmailInput?.value || "").trim(),
+    contactPhone: (contactPhoneInput?.value || "").trim(),
+    contactWebsite: (contactWebsiteInput?.value || "").trim(),
     coverLetter: {
       tone: tonesForConfig.length ? tonesForConfig.join(", ") : "professional",
       tones: tonesForConfig.length ? tonesForConfig : ["professional"],
@@ -372,6 +380,10 @@ async function loadConfig() {
   resumePathText.textContent = resumePath ? `Resume uploaded: ${resumePath}` : "No resume selected";
   coverLetterTextInput.value = coverLetterText;
   if (resumeSummaryInput) resumeSummaryInput.value = Array.isArray(config.resumeSummary) ? config.resumeSummary.join("\n") : (config.resumeSummary || "");
+  if (contactNameInput) contactNameInput.value = config.contactName || "";
+  if (contactEmailInput) contactEmailInput.value = config.contactEmail || "";
+  if (contactPhoneInput) contactPhoneInput.value = config.contactPhone || "";
+  if (contactWebsiteInput) contactWebsiteInput.value = config.contactWebsite || "";
   updateResumeGenerationState();
 }
 

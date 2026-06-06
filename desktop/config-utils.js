@@ -23,6 +23,10 @@ export const DEFAULTS = Object.freeze({
   reviewBeforeApply: true,
   slowMoMs: 80,
   browserProfileDir: ".playwright-seek-profile",
+  contactName: "",
+  contactEmail: "",
+  contactPhone: "",
+  contactWebsite: "",
   ai: {
     mode: "hosted",
     hostedModel: "budget",

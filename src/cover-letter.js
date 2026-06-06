@@ -4,12 +4,22 @@ import { ensureDir, slugify } from "./config.js";
 import { logStep, logSuccess, logWarn } from "./logger.js";
 import { generateCoverLetter, createTemplateCoverLetter } from "./ai/ai-service.js";
 
-const COVER_LETTER_FOOTER = [
-  "Cheers,",
-  "Anuj Khurana",
-  "aanujkhurana@gmail.com  |   0481250988",
-  "[aanujkhurana.github.io](https://aanujkhurana.github.io)"
-].join("\n");
+function buildCoverLetterFooter(config = {}) {
+  const lines = ["Cheers,"];
+  if (config.contactName) lines.push(config.contactName);
+
+  const contactParts = [];
+  if (config.contactEmail) contactParts.push(config.contactEmail);
+  if (config.contactPhone) contactParts.push(config.contactPhone);
+  if (contactParts.length) lines.push(contactParts.join("  |  "));
+
+  if (config.contactWebsite) {
+    const display = config.contactWebsite.replace(/^https?:\/\//, "");
+    lines.push(`[${display}](${config.contactWebsite.startsWith("http") ? config.contactWebsite : `https://${config.contactWebsite}`})`);
+  }
+
+  return lines.join("\n");
+}
 
 export async function createCoverLetter({ config, job }) {
   logStep("Creating cover letter", {
@@ -24,7 +34,7 @@ export async function createCoverLetter({ config, job }) {
     try {
       const aiLetter = await generateCoverLetter({ config, job });
       if (aiLetter) {
-        const cleaned = cleanCoverLetterText(aiLetter);
+        const cleaned = cleanCoverLetterText(aiLetter, config);
         logSuccess("AI cover letter created", {
           characters: cleaned.length
         });
@@ -40,11 +50,11 @@ export async function createCoverLetter({ config, job }) {
 
   if (config.coverLetterText) {
     logSuccess("Using saved cover letter text");
-    return cleanCoverLetterText(config.coverLetterText);
+    return cleanCoverLetterText(config.coverLetterText, config);
   }
 
   const templateLetter = createTemplateCoverLetter({ config, job });
-  const cleaned = cleanCoverLetterText(templateLetter);
+  const cleaned = cleanCoverLetterText(templateLetter, config);
   logSuccess("Template cover letter created");
   return cleaned;
 }
@@ -60,7 +70,7 @@ export function saveCoverLetter({ job, coverLetter }) {
   return filePath;
 }
 
-function cleanCoverLetterText(text) {
+function cleanCoverLetterText(text, config) {
   const cleanedBody = stripExistingFooter(String(text))
     .replace(/[—–]/g, ", ")
     .replace(/\s+-\s+/g, ", ")
@@ -69,7 +79,7 @@ function cleanCoverLetterText(text) {
     .replace(/ *, *, */g, ", ")
     .trim();
 
-  return `${cleanedBody}\n\n${COVER_LETTER_FOOTER}`;
+  return `${cleanedBody}\n\n${buildCoverLetterFooter(config)}`;
 }
 
 function stripExistingFooter(text) {

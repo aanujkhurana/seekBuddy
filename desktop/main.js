@@ -53,25 +53,44 @@ function spawnScript(scriptRelPath, env, args = []) {
   return spawn(process.execPath, [path.join(ROOT, scriptRelPath), ...args], {
     cwd: ROOT,
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, USER_DATA_DIR: getUserDataPath(), ...env }
+    env: {
+      ...process.env,
+      USER_DATA_DIR: getUserDataPath(),
+      PLAYWRIGHT_BROWSERS_PATH: getPlaywrightBrowsersPath(),
+      ...env
+    }
   });
 }
 
+function getPlaywrightBrowsersPath() {
+  return path.join(getUserDataPath(), "playwright-browsers");
+}
+
 function getPlaywrightCacheDir() {
+  // Check the app-managed browsers path first, then fall back to default system cache
+  const appPath = getPlaywrightBrowsersPath();
+  if (fs.existsSync(appPath)) return appPath;
+
   const home = os.homedir();
-  const cacheDir = process.platform === "darwin"
+  const defaultCache = process.platform === "darwin"
     ? path.join(home, "Library", "Caches", "ms-playwright")
     : process.platform === "win32"
       ? path.join(process.env.USERPROFILE || home, "AppData", "Local", "ms-playwright")
       : path.join(home, ".cache", "ms-playwright");
-  return cacheDir;
+  if (fs.existsSync(defaultCache)) return defaultCache;
+
+  return appPath; // default to app path for installation
 }
 
 function browsersInstalled() {
   const cacheDir = getPlaywrightCacheDir();
   if (!fs.existsSync(cacheDir)) return false;
-  const entries = fs.readdirSync(cacheDir);
-  return entries.some((e) => e.startsWith("chromium"));
+  try {
+    const entries = fs.readdirSync(cacheDir);
+    return entries.some((e) => e.startsWith("chromium"));
+  } catch {
+    return false;
+  }
 }
 
 async function promptInstallBrowsers() {
@@ -92,16 +111,38 @@ async function promptInstallBrowsers() {
   send("automation-log", "[INFO] Installing Playwright Chromium...\n");
 
   return new Promise((resolve) => {
-    const proc = spawn("npx", ["playwright", "install", "chromium"], {
+    const playwrightCli = path.join(ROOT, "node_modules", "playwright", "cli.js");
+    const proc = spawn(process.execPath, [playwrightCli, "install", "chromium"], {
       cwd: ROOT,
       stdio: ["ignore", "pipe", "pipe"],
-      shell: true
+      env: {
+        ...process.env,
+        PLAYWRIGHT_BROWSERS_PATH: getPlaywrightBrowsersPath()
+      }
     });
+
+    // Timeout after 5 minutes (browser download can be large)
+    const timeout = setTimeout(() => {
+      if (!proc.killed) {
+        proc.kill();
+        send("automation-log", "[ERROR] Browser installation timed out after 5 minutes.\n");
+        dialog.showErrorBox("Installation Timed Out", "Browser download took too long. Check your internet connection and try again from Settings.");
+        resolve();
+      }
+    }, 300000);
 
     proc.stdout.on("data", (data) => send("automation-log", data.toString()));
     proc.stderr.on("data", (data) => send("automation-log", data.toString()));
 
+    proc.on("error", (err) => {
+      clearTimeout(timeout);
+      send("automation-log", `[ERROR] Failed to start browser installation: ${err.message}\n`);
+      dialog.showErrorBox("Installation Failed", "Could not start the browser installer. Please re-install the app.");
+      resolve();
+    });
+
     proc.on("close", (code) => {
+      clearTimeout(timeout);
       if (code === 0) {
         send("automation-log", "[OK] Playwright Chromium installed.\n");
         dialog.showMessageBox(mainWindow, {
@@ -111,7 +152,7 @@ async function promptInstallBrowsers() {
         });
       } else {
         send("automation-log", `[ERROR] Installation failed (code ${code}).\n`);
-        dialog.showErrorBox("Installation Failed", "Could not install Chromium. Try running `npm run install:browsers` in the project directory.");
+        dialog.showErrorBox("Installation Failed", "Could not install Chromium. Check your internet connection and try again from Settings.");
       }
       resolve();
     });
@@ -707,11 +748,23 @@ ipcMain.handle("check-browsers", async () => {
 
 ipcMain.handle("install-browsers", async () => {
   const prevLog = [];
-  const proc = spawn("npx", ["playwright", "install", "chromium"], {
+  const playwrightCli = path.join(ROOT, "node_modules", "playwright", "cli.js");
+  const proc = spawn(process.execPath, [playwrightCli, "install", "chromium"], {
     cwd: ROOT,
     stdio: ["ignore", "pipe", "pipe"],
-    shell: true
+    env: {
+      ...process.env,
+      PLAYWRIGHT_BROWSERS_PATH: getPlaywrightBrowsersPath()
+    }
   });
+
+  // Timeout after 5 minutes
+  const timeout = setTimeout(() => {
+    if (!proc.killed) {
+      proc.kill();
+      send("automation-log", "[ERROR] Browser installation timed out after 5 minutes.\n");
+    }
+  }, 300000);
 
   proc.stdout.on("data", (data) => {
     const msg = data.toString();
@@ -724,8 +777,14 @@ ipcMain.handle("install-browsers", async () => {
     send("automation-log", msg);
   });
 
+  proc.on("error", (err) => {
+    clearTimeout(timeout);
+    send("automation-log", `[ERROR] Failed to start browser installation: ${err.message}\n`);
+  });
+
   return new Promise((resolve) => {
     proc.on("close", (code) => {
+      clearTimeout(timeout);
       const ok = code === 0;
       if (ok) send("automation-log", "[OK] Playwright Chromium installed.\n");
       else send("automation-log", `[ERROR] Installation failed (code ${code}).\n`);
