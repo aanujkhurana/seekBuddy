@@ -48,8 +48,7 @@ const statusLabel = document.getElementById("statusLabel");
 const startBtn = document.getElementById("start");
 const stopBtn = document.getElementById("stop");
 const continueBtn = document.getElementById("continueBtn");
-const aiNotReadyHint = document.getElementById("aiNotReadyHint");
-const aiHintSettingsLink = document.getElementById("aiHintSettingsLink");
+const aiNotReadyHint = document.getElementById("startHint");
 const appliedList = document.getElementById("appliedList");
 const clearAppliedBtn = document.getElementById("clearApplied");
 const exportJobsBtn = document.getElementById("exportJobs");
@@ -224,6 +223,7 @@ function renderSearchLists() {
     onRemove: (index) => {
       jobTitles = jobTitles.filter((_, itemIndex) => itemIndex !== index);
       renderSearchLists();
+  updateStartButtonState();
     }
   });
 
@@ -233,6 +233,7 @@ function renderSearchLists() {
     onRemove: (index) => {
       searchLocations = searchLocations.filter((_, itemIndex) => itemIndex !== index);
       renderSearchLists();
+  updateStartButtonState();
     }
   });
 
@@ -242,6 +243,7 @@ function renderSearchLists() {
     onRemove: (index) => {
       coverLetterTones = coverLetterTones.filter((_, itemIndex) => itemIndex !== index);
       renderSearchLists();
+  updateStartButtonState();
     }
   });
 }
@@ -250,6 +252,7 @@ function addJobTitle() {
   jobTitles = addUniqueValue(jobTitles, jobTitleInput.value);
   jobTitleInput.value = "";
   renderSearchLists();
+  updateStartButtonState();
   jobTitleInput.focus();
 }
 
@@ -257,6 +260,7 @@ function addSearchLocation() {
   searchLocations = addUniqueValue(searchLocations, searchLocationInput.value);
   searchLocationInput.value = "";
   renderSearchLists();
+  updateStartButtonState();
   searchLocationInput.focus();
 }
 
@@ -264,6 +268,7 @@ function addCoverLetterTone() {
   coverLetterTones = enforceToneLimit(addUniqueValue(coverLetterTones, coverLetterToneInput.value));
   coverLetterToneInput.value = "";
   renderSearchLists();
+  updateStartButtonState();
   coverLetterToneInput.focus();
 }
 
@@ -337,6 +342,7 @@ async function loadConfig() {
   const config = await window.seekApp.loadConfig();
   if (!config) {
     renderSearchLists();
+  updateStartButtonState();
     coverLetterWordLimitInput.value = 280;
     updateResumeGenerationState();
     return;
@@ -353,6 +359,7 @@ async function loadConfig() {
   }
   coverLetterTones = enforceToneLimit(coverLetterTones);
   renderSearchLists();
+  updateStartButtonState();
   maxApplicationsInput.value = config.maxApplications || 10;
   reviewBeforeApplyInput.checked = Boolean(config.reviewBeforeApply);
   coverLetterWordLimitInput.value = Math.min(Math.max(Number(savedCoverLetter.wordLimit) || 280, 120), 500);
@@ -404,9 +411,20 @@ function updateAIConfiguredState() {
   aiSettingsAlert.style.display = configured ? "none" : "";
   aiSettingsState.className = "settings-state " + (configured ? "ok" : "warn");
   aiSettingsState.textContent = configured ? "Configured" : "Needs setup";
-  startBtn.disabled = !configured;
-  aiNotReadyHint.style.display = configured ? "none" : "";
+  updateStartButtonState();
   updateResumeGenerationState();
+}
+
+function updateStartButtonState() {
+  const missing = [];
+  if (!jobTitles.length) missing.push("Add at least one <b>job title</b>");
+  if (!searchLocations.length) missing.push("Add at least one <b>location</b>");
+  if (!isAIConfigured()) missing.push('<button class="hint-link">Open Settings</button> and configure <b>AI credentials</b>');
+
+  const ready = missing.length === 0;
+  startBtn.disabled = !ready;
+  aiNotReadyHint.style.display = ready ? "none" : "";
+  aiNotReadyHint.innerHTML = missing.join(". ") + ".";
 }
 
 function getResumeGenerationMessage(kind) {
@@ -788,9 +806,8 @@ byokProviderSelect.addEventListener("change", () => {
 });
 apiKeyInput.addEventListener("input", updateAIConfiguredState);
 
-aiHintSettingsLink.addEventListener("click", (e) => {
-  e.preventDefault();
-  openSettings();
+aiNotReadyHint.addEventListener("click", (e) => {
+  if (e.target.classList.contains("hint-link")) openSettings();
 });
 
 toggleKeyBtn.addEventListener("click", () => {
