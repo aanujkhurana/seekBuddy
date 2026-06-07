@@ -29,6 +29,7 @@ function createWindow() {
     width: 1000,
     height: 720,
     title: "Seek Apply Assistant",
+    icon: path.join(ROOT, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

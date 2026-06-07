@@ -30,12 +30,14 @@
   "build": {
     "appId": "com.anuj.seekapplyassistant",
     "productName": "Seek Apply Assistant",
+    "icon": "build/icon.png",
     "directories": {
       "output": "dist"
     },
     "files": [
       "desktop/**/*",
       "src/**/*",
+      "build/icon.png",
       "package.json"
     ],
     "asarUnpack": [
@@ -62,17 +64,27 @@
         }
       ]
     },
+    "dmg": {
+      "icon": "build/icon.icns"
+    },
     "win": {
       "icon": "build/icon.ico",
       "target": [
         "nsis"
       ],
-      "signingHashAlgorithms": [
-        "sha256"
-      ],
-      "rfc3161TimeStampServer": "https://timestamp.digicert.com"
+      "signtoolOptions": {
+        "signingHashAlgorithms": [
+          "sha256"
+        ],
+        "rfc3161TimeStampServer": "https://timestamp.digicert.com"
+      }
+    },
+    "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     },
     "linux": {
+      "icon": "build/icon.png",
       "target": [
         "AppImage"
       ]
