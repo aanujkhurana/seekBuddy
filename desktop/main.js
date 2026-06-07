@@ -56,7 +56,7 @@ function spawnScript(scriptRelPath, env, args = []) {
     env: {
       ...process.env,
       USER_DATA_DIR: getUserDataPath(),
-      PLAYWRIGHT_BROWSERS_PATH: getPlaywrightBrowsersPath(),
+      PLAYWRIGHT_BROWSERS_PATH: getPlaywrightCacheDir(),
       ...env
     }
   });
@@ -66,8 +66,20 @@ function getPlaywrightBrowsersPath() {
   return path.join(getUserDataPath(), "playwright-browsers");
 }
 
+function getBundledBrowsersPath() {
+  // In packaged app, extraResources copies build/bundled-browsers → Resources/bundled-browsers
+  // In dev mode, look in the project's build/ directory
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "bundled-browsers");
+  }
+  return path.join(ROOT, "build", "bundled-browsers");
+}
+
 function getPlaywrightCacheDir() {
-  // Check the app-managed browsers path first, then fall back to default system cache
+  // Priority order: bundled with app → app-managed user data → system cache → default to app path
+  const bundledPath = getBundledBrowsersPath();
+  if (fs.existsSync(bundledPath)) return bundledPath;
+
   const appPath = getPlaywrightBrowsersPath();
   if (fs.existsSync(appPath)) return appPath;
 
@@ -747,6 +759,12 @@ ipcMain.handle("check-browsers", async () => {
 });
 
 ipcMain.handle("install-browsers", async () => {
+  // If browsers are already bundled or installed, skip the download
+  if (browsersInstalled()) {
+    send("automation-log", "[OK] Playwright Chromium is already installed.\n");
+    return { success: true };
+  }
+
   const prevLog = [];
   const playwrightCli = path.join(ROOT, "node_modules", "playwright", "cli.js");
   const proc = spawn(process.execPath, [playwrightCli, "install", "chromium"], {

@@ -6,12 +6,13 @@
   "main": "desktop/main.js",
   "scripts": {
     "install:browsers": "playwright install chromium",
+    "bundle:browsers": "PLAYWRIGHT_BROWSERS_PATH=build/bundled-browsers playwright install chromium",
     "apply": "node src/seek-apply.js",
     "clear:applied": "node src/clear-applied.js",
     "clear-applied": "node src/clear-applied.js",
     "login": "node src/seek-login.js",
     "desktop": "electron .",
-    "build:mac": "electron-builder --mac",
+    "build:mac": "npm run bundle:browsers && electron-builder --mac",
     "build:win": "electron-builder --win",
     "build": "electron-builder",
     "backend": "node backend/src/index.js",
@@ -37,6 +38,13 @@
       "src/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "build/bundled-browsers",
+        "to": "bundled-browsers",
+        "filter": ["**/*"]
+      }
+    ],
     "asarUnpack": [
       "node_modules/fsevents/**",
       "node_modules/playwright-core/**"
@@ -46,7 +54,13 @@
       "target": [
         "dmg"
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": {
+        "teamId": "${APPLE_TEAM_ID}"
+      }
     },
     "win": {
       "icon": "build/icon.ico",

@@ -10,3 +10,7 @@ dist/
 desktop/dist/
 desktop/release/
 build/
+!build/icon.icns
+!build/icon.ico
+!build/icon.svg
+!build/entitlements.mac.plist

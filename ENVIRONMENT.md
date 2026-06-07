@@ -19,6 +19,20 @@ SUPABASE_SERVICE_ROLE_KEY=
 STRIPE_SECRET_KEY=
 ```
 
+## Code Signing (macOS)
+
+Required for notarized macOS builds. See CODE_SIGNING.md for full setup guide.
+
+Do NOT commit these values. Use a local `.env.signing` file or CI secrets.
+
+```env
+CSC_LINK=/path/to/DeveloperIDApplication.p12
+CSC_KEY_PASSWORD=your-p12-password
+APPLE_ID=your-apple-id@email.com
+APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
+APPLE_TEAM_ID=YOUR_TEAM_ID
+```
+
 ## Backend
 
 Required backend variables:

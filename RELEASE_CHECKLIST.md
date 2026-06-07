@@ -1,6 +1,6 @@
 # Release Checklist
 
-> Last updated: June 5, 2026
+> Last updated: June 7, 2026
 
 ## Pre-release Verification
 
@@ -35,8 +35,7 @@
 - [ ] Test Playwright browser install prompt
 - [ ] Test SEEK login flow
 - [ ] Test stop button during automation
-- [ ] Check Gatekeeper warning (no code signing yet)
-- [ ] Consider code signing for future releases
+- [x] Gatekeeper warning resolved (code signing + notarization configured; certificates needed from Apple Developer account)
 
 ## Windows
 
@@ -47,7 +46,7 @@
 - [ ] Test SEEK login flow
 - [ ] Test stop button during automation
 - [ ] Check Windows Defender / SmartScreen warning
-- [ ] Consider code signing for future releases
+- [x] Code signing configured for macOS (see CODE_SIGNING.md); Windows code signing not yet set up
 
 ## Linux
 
@@ -64,8 +63,8 @@
 | Supabase Auth not yet integrated | Low | File-based auth works for MVP; Supabase migration is a future task |
 | Stripe / paid credits not integrated | Low | Billing plan definitions exist; payment flow is future work |
 | No automated browser/E2E tests | Medium | All unit + integration tests pass; E2E needs a SEEK login session |
-| macOS build never executed | High | `electron-builder` config is valid but `npm run build:mac` has not been run |
-| No code signing certificates | Medium | Gatekeeper/SmartScreen warnings expected on first install |
+| macOS build never executed | Medium | DMG built and tested on M1; crash fixed (npx→bundled CLI); Playwright Chromium bundled (~170MB); code signing configured (needs Apple Developer certs) |
+| No code signing certificates | Low | Config ready (entitlements.plist, hardenedRuntime, notarize teamId); just needs Apple Developer account certificates (see CODE_SIGNING.md) |
 | Backend `.env` needs real API keys | Medium | AI endpoints return errors without valid keys; `/health`, `/auth`, `/billing/plans`, `/usage/me` work fine; BYOK mode works without backend |
 
 ## User Documentation
@@ -73,7 +72,7 @@
 - [x] README.md with install guide (macOS, Windows, Linux, build from source)
 - [x] AI mode explanation (hosted vs BYOK in UI + AI_PROVIDER_STRATEGY.md)
 - [x] Privacy explanation (SECURITY.md: what data is sent where)
-- [x] Troubleshooting guide (TROUBLESHOOTING.md)
+- [x] Code signing guide written (CODE_SIGNING.md: certificate creation, env vars, notarization, verification)
 - [x] Uninstall guide (TROUBLESHOOTING.md includes uninstall steps)
 - [x] Architecture docs (ARCHITECTURE.md, BACKEND.md, FEATURE_WORKFLOW.md)
 - [x] Coding standards (CODING_STANDARDS.md, AGENTS.md)
