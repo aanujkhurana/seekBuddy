@@ -38,13 +38,6 @@
       "src/**/*",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "build/bundled-browsers",
-        "to": "bundled-browsers",
-        "filter": ["**/*"]
-      }
-    ],
     "asarUnpack": [
       "node_modules/fsevents/**",
       "node_modules/playwright-core/**"
@@ -60,13 +53,24 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "notarize": {
         "teamId": "${APPLE_TEAM_ID}"
-      }
+      },
+      "extraResources": [
+        {
+          "from": "build/bundled-browsers",
+          "to": "bundled-browsers",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "win": {
       "icon": "build/icon.ico",
       "target": [
         "nsis"
-      ]
+      ],
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
+      "rfc3161TimeStampServer": "https://timestamp.digicert.com"
     },
     "linux": {
       "target": [

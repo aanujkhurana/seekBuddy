@@ -33,6 +33,22 @@ APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
 APPLE_TEAM_ID=YOUR_TEAM_ID
 ```
 
+## Code Signing (Windows)
+
+Required for SmartScreen-trusted Windows builds. See CODE_SIGNING.md for full setup guide.
+
+`CSC_LINK` and `CSC_KEY_PASSWORD` are shared with macOS. Use `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD` to override for Windows only.
+
+```env
+# Shared (used by both macOS and Windows unless overridden)
+CSC_LINK=/path/to/code-signing-certificate.pfx
+CSC_KEY_PASSWORD=your-pfx-password
+
+# Windows-only overrides (optional)
+WIN_CSC_LINK=/path/to/windows-specific-certificate.pfx
+WIN_CSC_KEY_PASSWORD=your-windows-pfx-password
+```
+
 ## Backend
 
 Required backend variables:

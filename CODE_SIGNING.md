@@ -141,3 +141,181 @@ Store the `.p12` file as a base64-encoded secret:
 base64 -i DeveloperIDApplication.p12 | pbcopy
 # Paste into GitHub Secret MAC_CSC_LINK
 ```
+
+---
+
+# Windows Code Signing
+
+This guide covers setting up code signing for the Seek Apply Assistant
+NSIS installer so it avoids SmartScreen warnings on Windows.
+
+## Prerequisites
+
+You need a **Code Signing Certificate** from a trusted Certificate Authority:
+
+- **EV (Extended Validation)**: Recommended for immediate SmartScreen trust. Requires a physical hardware token (USB key) or cloud HSM. No reputation-building needed — SmartScreen trusts EV-signed apps immediately.
+- **OV (Organization Validation)**: Cheaper option (~$200–400/year vs $400–700 for EV). Requires building reputation over time (hundreds to thousands of installs before SmartScreen stops warning).
+
+**Where to buy:** DigiCert, Sectigo (formerly Comodo), GlobalSign, or SSL.com.
+
+## Step-by-Step Setup
+
+### Step 1: Purchase and validate the certificate
+
+1. Buy an EV or OV Code Signing Certificate from a CA
+2. Complete the CA's organization validation process (D-U-N-S number, business registration, phone verification)
+3. For EV: receive a hardware token (USB key) with the certificate pre-installed
+4. For OV: download the certificate after validation completes
+
+### Step 2: Export the certificate as .pfx (OV only)
+
+If using an OV certificate (file-based):
+
+1. Open **certmgr.msc** (Windows) or use the CA's management tool
+2. Find your certificate under **Personal → Certificates**
+3. Right-click → **All Tasks → Export**
+4. Choose **Yes, export the private key**
+5. Format: **Personal Information Exchange (.pfx)**
+6. Set a strong password — this is `CSC_KEY_PASSWORD`
+7. Save as `code-signing-certificate.pfx`
+
+If using an EV certificate on a hardware token, you'll need a cloud signing service (Azure Key Vault, SSL.com eSigner) or sign via `signtool.exe` directly — see the Azure Key Vault section below.
+
+## Environment Variables
+
+Set these before running the build. Do **NOT** hardcode them or commit them.
+
+### Shared env vars (used by both macOS and Windows)
+
+```bash
+export CSC_LINK="/path/to/code-signing-certificate.pfx"
+export CSC_KEY_PASSWORD="your-pfx-password"
+```
+
+### Windows-specific overrides (optional)
+
+Use these if your Windows certificate differs from macOS:
+
+```bash
+export WIN_CSC_LINK="/path/to/windows-specific-certificate.pfx"
+export WIN_CSC_KEY_PASSWORD="your-windows-pfx-password"
+```
+
+`WIN_CSC_LINK`/`WIN_CSC_KEY_PASSWORD` take precedence over `CSC_LINK`/`CSC_KEY_PASSWORD` for Windows builds.
+
+### Using a .env file (do not commit)
+
+Add Windows signing vars to `.env.signing`:
+
+```bash
+# macOS
+CSC_LINK=~/Desktop/DeveloperIDApplication.p12
+CSC_KEY_PASSWORD=your-p12-password
+APPLE_ID=you@email.com
+APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
+APPLE_TEAM_ID=YOUR_TEAM_ID
+
+# Windows (uses same CSC_LINK/CSC_KEY_PASSWORD by default;
+# uncomment WIN_ prefixed vars to override)
+# WIN_CSC_LINK=~/Desktop/code-signing-certificate.pfx
+# WIN_CSC_KEY_PASSWORD=your-windows-pfx-password
+```
+
+## Build the Signed Windows Installer
+
+```bash
+# Set env vars (see above), then:
+npm run build:win
+```
+
+electron-builder will:
+1. Sign the `.exe` and all bundled binaries with SHA-256
+2. Apply an RFC 3161 timestamp from DigiCert
+3. Package everything into the NSIS installer (also signed)
+
+## Verify Signing
+
+On a Windows machine (or using `osslsigncode` on macOS/Linux):
+
+```bash
+# Check digital signature (Windows)
+signtool verify /pa /v "dist/Seek Apply Assistant Setup 1.0.0.exe"
+
+# Check digital signature (macOS/Linux with osslsigncode)
+brew install osslsigncode
+osslsigncode verify "dist/Seek Apply Assistant Setup 1.0.0.exe"
+```
+
+Expected output: `Succeeded` or `Signature verification: OK`.
+
+## SmartScreen Reputation
+
+| Certificate Type | SmartScreen Behavior | Time to Trust |
+|---|---|---|
+| **EV** | No warnings from day one | Immediate |
+| **OV** | "Windows protected your PC" warning | Weeks to months, depends on install volume |
+| **None** | "Windows protected your PC" + "Unknown publisher" | Never fully trusted |
+
+### Building reputation for OV certificates
+
+- SmartScreen uses cumulative install volume as a trust signal
+- Typically needs hundreds to thousands of successful installs
+- Each signed build shares the same certificate, so reputation accumulates
+- Submit your app to Microsoft for malware analysis: [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission)
+
+## Azure Key Vault / Cloud Signing
+
+If using an EV certificate stored in Azure Key Vault or a cloud signing service:
+
+```bash
+# electron-builder doesn't natively support Azure Key Vault,
+# but you can use a custom sign script via the win.sign option.
+
+# 1. Install Azure Sign Tool
+dotnet tool install --global AzureSignTool
+
+# 2. Create a sign.cmd script:
+@echo off
+AzureSignTool sign -kvu "%AZURE_KEY_VAULT_URI%" -kvi "%AZURE_CLIENT_ID%" -kvs "%AZURE_CLIENT_SECRET%" -kvc %AZURE_CERT_NAME% -tr http://timestamp.digicert.com -td sha256 %*
+
+# 3. Add to package.json:
+# "win": {
+#   "sign": "./scripts/sign.cmd"
+# }
+```
+
+## Troubleshooting
+
+### "The file is not digitally signed"
+Check that `CSC_LINK` points to a valid `.pfx`/`.p12` file and `CSC_KEY_PASSWORD` is correct.
+
+### "The certificate is not trusted"
+The certificate chain is incomplete. Make sure the CA's intermediate certificates are included in the `.pfx` export.
+
+### "SignTool Error: No certificates were found"
+The certificate type doesn't match. You need a **Code Signing** certificate, not an SSL/TLS certificate.
+
+### SmartScreen still warns after signing
+- OV certificates need time to build reputation
+- EV certificates should work immediately — verify the certificate is actually EV
+- Submit the signed installer to Microsoft for analysis (see link above)
+- Check that timestamping succeeded (`rfc3161TimeStampServer` in config)
+
+## CI/CD (GitHub Actions)
+
+For automated Windows builds, store the `.pfx` as a base64-encoded GitHub Secret:
+
+```bash
+base64 -i code-signing-certificate.pfx | pbcopy
+# Paste into GitHub Secret WIN_CSC_LINK
+```
+
+```yaml
+- name: Build Windows app
+  env:
+    WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+    WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+  run: npm run build:win
+```
+
+**Note**: GitHub Actions Windows runners have `signtool.exe` pre-installed, so no additional setup is needed.

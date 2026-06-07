@@ -46,7 +46,7 @@
 - [ ] Test SEEK login flow
 - [ ] Test stop button during automation
 - [ ] Check Windows Defender / SmartScreen warning
-- [x] Code signing configured for macOS (see CODE_SIGNING.md); Windows code signing not yet set up
+- [x] Code signing configured for Windows (signingHashAlgorithms, rfc3161TimeStampServer, CSC_LINK/CSC_KEY_PASSWORD env vars; needs EV/OV certificate from DigiCert/Sectigo — see CODE_SIGNING.md)
 
 ## Linux
 
@@ -64,7 +64,7 @@
 | Stripe / paid credits not integrated | Low | Billing plan definitions exist; payment flow is future work |
 | No automated browser/E2E tests | Medium | All unit + integration tests pass; E2E needs a SEEK login session |
 | macOS build never executed | Medium | DMG built and tested on M1; crash fixed (npx→bundled CLI); Playwright Chromium bundled (~170MB); code signing configured (needs Apple Developer certs) |
-| No code signing certificates | Low | Config ready (entitlements.plist, hardenedRuntime, notarize teamId); just needs Apple Developer account certificates (see CODE_SIGNING.md) |
+| No code signing certificates | Low | Configs ready for macOS (entitlements.plist, hardenedRuntime, notarize teamId) and Windows (SHA-256, RFC 3161 timestamp); just needs Apple Developer account + Windows EV/OV certificate from a CA (see CODE_SIGNING.md) |
 | Backend `.env` needs real API keys | Medium | AI endpoints return errors without valid keys; `/health`, `/auth`, `/billing/plans`, `/usage/me` work fine; BYOK mode works without backend |
 
 ## User Documentation
