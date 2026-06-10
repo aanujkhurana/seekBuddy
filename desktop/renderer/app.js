@@ -1,5 +1,6 @@
 const settingsToggle = document.getElementById("settingsToggle");
 const settingsBack = document.getElementById("settingsBack");
+const themeToggle = document.getElementById("themeToggle");
 const aiSettingsAlert = document.getElementById("aiSettingsAlert");
 const aiSettingsState = document.getElementById("aiSettingsState");
 const openLoginBtns = Array.from(document.querySelectorAll("[data-open-login]"));
@@ -71,6 +72,39 @@ let coverLetterTones = ["professional", "direct", "confident", "tailored"];
 let hasAppliedJobs = false;
 let resumeGenerationTarget = "";
 
+const THEME_STORAGE_KEY = "seekApplyAssistant.theme";
+
+function getPreferredTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === "light" || saved === "dark") return saved;
+  } catch {
+    // Keep the UI usable if storage is unavailable.
+  }
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(theme) {
+  const resolved = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = resolved;
+
+  if (!themeToggle) return;
+  const nextTheme = resolved === "dark" ? "light" : "dark";
+  themeToggle.setAttribute("aria-label", `Switch to ${nextTheme} theme`);
+  themeToggle.title = `Switch to ${nextTheme} theme`;
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  const next = current === "dark" ? "light" : "dark";
+  applyTheme(next);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+  } catch {
+    // Theme still applies for the current session.
+  }
+}
+
 function setLoginState({ validated, inProgress = false, failed = false, message }) {
   loginValidated = validated;
   loginInProgress = inProgress;
@@ -82,7 +116,7 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
   openLoginBtns.forEach((button) => {
     button.style.display = loginValidated ? "none" : "";
     button.disabled = inProgress;
-    button.textContent = failed ? "Reopen SEEK Login" : "Open SEEK Login";
+    button.textContent = failed ? "Reopen SEEK login" : "Open SEEK login";
   });
   logoutLoginBtns.forEach((button) => {
     button.style.display = loginValidated ? "" : "none";
@@ -291,13 +325,13 @@ function setStatus(state) {
   if (automationRunning) {
     closeSettings();
     document.querySelectorAll("input, textarea, select, button").forEach(el => {
-      if (el === startBtn || el === stopBtn || el === continueBtn) return;
+      if (el === startBtn || el === stopBtn || el === continueBtn || el === themeToggle) return;
       if (el.disabled) el.dataset.wasDisabled = "1";
       el.disabled = true;
     });
   } else {
     document.querySelectorAll("input, textarea, select, button").forEach(el => {
-      if (el === startBtn || el === stopBtn || el === continueBtn) return;
+      if (el === startBtn || el === stopBtn || el === continueBtn || el === themeToggle) return;
       if (el.dataset.wasDisabled === "1") {
         delete el.dataset.wasDisabled;
       } else {
@@ -602,7 +636,7 @@ function renderAppliedJobs(jobs) {
       const openJob = document.createElement("button");
       openJob.type = "button";
       openJob.className = "applied-action";
-      openJob.textContent = "Open Job";
+      openJob.textContent = "Open job";
       openJob.addEventListener("click", () => openAppliedJobUrl(job.url));
       right.appendChild(openJob);
     }
@@ -611,7 +645,7 @@ function renderAppliedJobs(jobs) {
       const downloadCoverLetter = document.createElement("button");
       downloadCoverLetter.type = "button";
       downloadCoverLetter.className = "applied-action";
-      downloadCoverLetter.textContent = "Download Cover Letter";
+      downloadCoverLetter.textContent = "Download cover letter";
       downloadCoverLetter.addEventListener("click", () => downloadAppliedCoverLetter(job.coverLetterPath));
       right.appendChild(downloadCoverLetter);
     }
@@ -765,6 +799,7 @@ coverLetterWordLimitInput.addEventListener("blur", () => {
 
 settingsToggle.addEventListener("click", toggleSettings);
 settingsBack.addEventListener("click", closeSettings);
+themeToggle.addEventListener("click", toggleTheme);
 
 document.querySelectorAll("#helpSection a[href]").forEach((link) => {
   link.addEventListener("click", async (event) => {
@@ -802,7 +837,7 @@ async function logoutSeekLogin() {
   setLoginState({
     validated: false,
     inProgress: false,
-    message: result.message || "Logged out. Open SEEK Login to sign in again."
+    message: result.message || "Logged out. Open SEEK login to sign in again."
   });
   appendLog(result.message || "Logged out of SEEK session.");
 }
@@ -947,7 +982,7 @@ window.seekApp.onLoginStatus((status) => {
     setLoginState({
       validated: false,
       inProgress: false,
-      message: message || "Logged out. Open SEEK Login to sign in again."
+      message: message || "Logged out. Open SEEK login to sign in again."
     });
   }
 });
@@ -1004,6 +1039,7 @@ async function loadUsageDashboard() {
 // ---- Init ----
 
 async function init() {
+  applyTheme(getPreferredTheme());
   updateLogsEmptyState();
   const status = await window.seekApp.getAutomationStatus();
   setStatus(status);

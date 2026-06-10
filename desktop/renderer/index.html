@@ -1,8 +1,22 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
   <title>Seek Apply Assistant</title>
+  <script>
+    (() => {
+      try {
+        const savedTheme = localStorage.getItem("seekApplyAssistant.theme");
+        const preferredTheme = savedTheme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.dataset.theme = preferredTheme;
+      } catch {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="./design-system.css" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body class="login-locked">
@@ -37,12 +51,16 @@
             </svg>
             Seek Apply Assistant
           </h1>
-          <p>Automate SEEK job applications with one click.</p>
+          <p>Visible, reviewed job application workflow for SEEK.</p>
         </div>
         <div class="header-actions">
           <div id="headerLoginBadge" class="session-badge header-session logged-out" data-login-badge>Not logged in</div>
+          <button id="themeToggle" class="icon-btn theme-btn" aria-label="Switch to dark theme" title="Switch to dark theme">
+            <span class="theme-icon theme-icon-light" data-icon="sun" aria-hidden="true"></span>
+            <span class="theme-icon theme-icon-dark" data-icon="moon" aria-hidden="true"></span>
+          </button>
           <button id="settingsToggle" class="icon-btn settings-btn" aria-label="Open settings" title="Settings">
-            <span aria-hidden="true">⚙</span>
+            <span class="heading-icon" data-icon="gear" aria-hidden="true"></span>
             <span id="settingsAlert" class="settings-alert" aria-hidden="true">!</span>
           </button>
         </div>
@@ -50,19 +68,20 @@
     </section>
 
     <section class="card" id="loginCard" data-main-page>
-      <h2><span class="heading-icon" data-icon="login"></span>SEEK LOGIN</h2>
+      <h2><span class="heading-icon" data-icon="login"></span>SEEK login</h2>
       <div class="session-badge logged-out" data-login-badge>Not logged in</div>
 
       <div class="actions">
-        <button data-open-login>Open SEEK Login</button>
+        <button data-open-login>Open SEEK login</button>
         <button class="danger" data-logout-login style="display:none">Logout</button>
       </div>
       <p class="hint login-help">SEEK opens in a visible browser. Choose the email login option and sign in there; the app unlocks automatically after the session is validated.</p>
       <p class="hint login-help" data-login-status>Sign in manually before configuring applications. Your SEEK browser session is stored locally and can survive app restarts until SEEK expires it.</p>
     </section>
 
-    <section class="card" data-login-required data-main-page>
-      <label for="jobTitleInput">JOB TITLE</label>
+    <section class="card" id="searchCriteriaCard" data-login-required data-main-page>
+      <h2><span class="heading-icon" data-icon="briefcase"></span>Search criteria</h2>
+      <label for="jobTitleInput">Job title</label>
       <div class="add-row">
         <input id="jobTitleInput" placeholder="Enter your job title and press enter" />
         <button id="addJobTitle" class="icon-btn" aria-label="Add job title" title="Add job title">+</button>
@@ -72,7 +91,7 @@
 
       <div class="divider"></div>
 
-      <label for="searchLocationInput">LOCATION</label>
+      <label for="searchLocationInput">Location</label>
       <div class="add-row">
         <input id="searchLocationInput" placeholder="Enter desired work location and press enter" />
         <button id="addLocation" class="icon-btn" aria-label="Add location" title="Add location">+</button>
@@ -137,16 +156,16 @@
 
     <section id="settingsPage" class="settings-page" data-login-required>
       <div class="settings-header">
-        <button id="settingsBack" class="btn-sm">Back</button>
+        <button id="settingsBack" class="btn-sm"><span class="button-icon" data-icon="arrowLeft" aria-hidden="true"></span>Back</button>
         <h2>Settings</h2>
       </div>
 
       <section class="card">
-        <h2><span class="heading-icon" data-icon="login"></span>SEEK LOGIN</h2>
+        <h2><span class="heading-icon" data-icon="login"></span>SEEK login</h2>
         <div class="session-badge logged-out" data-login-badge>Not logged in</div>
 
         <div class="actions">
-          <button data-open-login>Open SEEK Login</button>
+          <button data-open-login>Open SEEK login</button>
           <button class="danger" data-logout-login style="display:none">Logout</button>
         </div>
         <p class="hint login-help">SEEK opens in a visible browser. Choose the email login option and sign in there; the app unlocks automatically after the session is validated.</p>
