@@ -115,8 +115,9 @@
 
       <div class="divider"></div>
 
-      <label>Maximum applications per run</label>
-      <input id="maxApplications" type="number" value="10" />
+      <label for="maxApplications">Maximum applications per run</label>
+      <input id="maxApplications" type="number" min="1" max="50" value="10" />
+      <p class="hint">Daily safety limit is 50 applications. Runs cannot exceed the remaining daily allowance.</p>
 
       <label class="check-row">
         <input id="reviewBeforeApply" type="checkbox" checked />

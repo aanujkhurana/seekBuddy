@@ -14,6 +14,7 @@ import { createCoverLetter, saveCoverLetter } from "./cover-letter.js";
 import { logError, logStep, logSuccess, logWarn } from "./logger.js";
 
 let shouldStop = false;
+const DAILY_APPLICATION_LIMIT = 50;
 
 process.on("SIGTERM", () => {
   if (shouldStop) return;
@@ -33,9 +34,28 @@ const dataDir = process.env.USER_DATA_DIR || "data";
 const handledPath = path.join(dataDir, "handled-applications.json");
 const handledApplications = readJsonFile(handledPath, []);
 const handledUrls = new Set(handledApplications.map((item) => item.url));
+let dailyApplicationsToday = countApplicationsForDate(handledApplications, getLocalDateKey());
+const requestedRunLimit = normalizeApplicationLimit(config.maxApplications);
+const availableToday = Math.max(DAILY_APPLICATION_LIMIT - dailyApplicationsToday, 0);
+const runApplicationLimit = Math.min(requestedRunLimit, availableToday);
 
 ensureDir(dataDir);
 ensureDir("out/cover-letters");
+
+logStep("Daily application limit", {
+  dailyLimit: DAILY_APPLICATION_LIMIT,
+  alreadyCountedToday: dailyApplicationsToday,
+  availableToday,
+  requestedRunLimit,
+  runApplicationLimit
+});
+
+if (runApplicationLimit <= 0) {
+  logWarn("Daily application limit reached; no more applications will be prepared today", {
+    dailyLimit: DAILY_APPLICATION_LIMIT
+  });
+  process.exit(0);
+}
 
 logStep("Launching browser", {
   profileDir: config.browserProfileDir,
@@ -51,10 +71,20 @@ try {
   const page = context.pages()[0] || (await context.newPage());
   const searchUrls = buildSearchUrls(config);
   let totalHandled = 0;
+  let totalApplicationsPrepared = 0;
   let blocked = false;
 
   for (const searchUrl of searchUrls) {
     if (shouldStop) break;
+    const remainingRunLimit = runApplicationLimit - totalApplicationsPrepared;
+    if (remainingRunLimit <= 0) {
+      logWarn("Run application limit reached; stopping before the next search", {
+        runApplicationLimit,
+        dailyLimit: DAILY_APPLICATION_LIMIT
+      });
+      break;
+    }
+
     logStep("Opening SEEK search", { searchUrl });
     await page.goto(searchUrl, { waitUntil: "domcontentloaded" });
     await waitForHumanVerification(page);
@@ -66,17 +96,26 @@ try {
       jobCount: jobUrls.length
     });
 
-    const candidateUrls = jobUrls.slice(0, config.maxApplications);
+    const candidateUrls = jobUrls.slice(0, remainingRunLimit);
     logStep("Selected job candidates for this search", {
       searchUrl,
       selectedCount: candidateUrls.length,
-      maxApplications: config.maxApplications
+      remainingRunLimit,
+      dailyLimit: DAILY_APPLICATION_LIMIT
     });
 
     let searchHandled = 0;
     let searchAttempted = 0;
     for (const url of candidateUrls) {
       if (shouldStop) break;
+      if (totalApplicationsPrepared >= runApplicationLimit || dailyApplicationsToday >= DAILY_APPLICATION_LIMIT) {
+        logWarn("Daily application limit reached; stopping after current search candidate", {
+          dailyLimit: DAILY_APPLICATION_LIMIT,
+          dailyApplicationsToday
+        });
+        break;
+      }
+
       if (handledUrls.has(url)) {
         logStep("Skipping already handled job", { url });
         continue;
@@ -112,10 +151,16 @@ try {
       writeJsonFile(handledPath, handledApplications);
       searchHandled += 1;
       totalHandled += 1;
+      if (countsTowardDailyLimit({ result, dryRun })) {
+        dailyApplicationsToday += 1;
+        totalApplicationsPrepared += 1;
+      }
       logSuccess("Job marked handled", {
         url,
         searchHandled,
-        totalHandled
+        totalHandled,
+        applicationsPreparedToday: dailyApplicationsToday,
+        dailyLimit: DAILY_APPLICATION_LIMIT
       });
     }
 
@@ -133,7 +178,9 @@ try {
   }
 
   logSuccess("Apply run complete", {
-    totalHandled
+    totalHandled,
+    totalApplicationsPrepared,
+    dailyLimit: DAILY_APPLICATION_LIMIT
   });
   if (!dryRun && (config.reviewBeforeApply ?? config.pauseBeforeSubmit ?? true) && totalHandled > 0) {
     await waitForBatchReview(context, totalHandled);
@@ -142,6 +189,35 @@ try {
   logStep("Closing browser context");
   await context.close();
   logSuccess("Browser context closed");
+}
+
+function normalizeApplicationLimit(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return 10;
+  return Math.min(Math.floor(number), DAILY_APPLICATION_LIMIT);
+}
+
+function countsTowardDailyLimit({ result, dryRun }) {
+  if (dryRun) return false;
+  return (result.status || "prepared") !== "already_applied";
+}
+
+function countApplicationsForDate(applications, dateKey) {
+  return applications.filter((item) => {
+    if (!item?.handledAt) return false;
+    if (item.dryRun) return false;
+    if ((item.status || "prepared") === "already_applied") return false;
+    return getLocalDateKey(new Date(item.handledAt)) === dateKey;
+  }).length;
+}
+
+function getLocalDateKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 async function handleJob({ context, config, dryRun, searchUrl, url }) {

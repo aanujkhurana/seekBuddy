@@ -1,7 +1,7 @@
 import { users } from "../db.js";
 
 const MAX_AI_GENERATIONS = parseInt(process.env.DAILY_AI_GENERATIONS, 10) || 20;
-const MAX_APPLICATIONS = parseInt(process.env.DAILY_APPLICATIONS, 10) || 10;
+const MAX_APPLICATIONS = parseInt(process.env.DAILY_APPLICATIONS, 10) || 50;
 
 export function checkAIGenerationLimit(req, res, next) {
   if (req.user.dailyAIGenerations >= MAX_AI_GENERATIONS) {

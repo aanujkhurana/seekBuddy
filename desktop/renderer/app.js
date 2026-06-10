@@ -177,6 +177,7 @@ function addUniqueValue(list, value) {
 }
 
 const MAX_TONES = 5;
+const DAILY_APPLICATION_LIMIT = 50;
 
 const PROVIDER_MODELS = {
   openrouter: [
@@ -351,13 +352,14 @@ function getConfig() {
   const locationsForConfig = addUniqueValue(searchLocations, searchLocationInput.value);
   const tonesForConfig = enforceToneLimit(addUniqueValue(coverLetterTones, coverLetterToneInput.value));
   const coverLetterWordLimit = Math.min(Math.max(Number(coverLetterWordLimitInput.value) || 280, 120), 500);
+  const maxApplications = clampApplicationLimit(maxApplicationsInput.value);
 
   return {
     email: "",
     password: "",
     keywords: titlesForConfig.join(", "),
     location: locationsForConfig.join(", "),
-    maxApplications: Number(maxApplicationsInput.value) || 10,
+    maxApplications,
     reviewBeforeApply: reviewBeforeApplyInput.checked,
     resumePath,
     coverLetterPath: "",
@@ -404,7 +406,7 @@ async function loadConfig() {
   coverLetterTones = enforceToneLimit(coverLetterTones);
   renderSearchLists();
   updateStartButtonState();
-  maxApplicationsInput.value = config.maxApplications || 10;
+  maxApplicationsInput.value = clampApplicationLimit(config.maxApplications || 10);
   reviewBeforeApplyInput.checked = Boolean(config.reviewBeforeApply);
   coverLetterWordLimitInput.value = Math.min(Math.max(Number(savedCoverLetter.wordLimit) || 280, 120), 500);
 
@@ -597,63 +599,152 @@ function renderAppliedJobs(jobs) {
     return;
   }
 
-  const recent = jobs.slice(-30).reverse();
+  const grouped = groupJobsByDate(jobs);
 
-  for (const job of recent) {
-    const item = document.createElement("div");
-    item.className = "applied-item";
+  for (const group of grouped) {
+    const groupSection = document.createElement("section");
+    groupSection.className = "applied-date-group";
 
-    const info = document.createElement("div");
-    info.className = "applied-info";
+    const header = document.createElement("div");
+    header.className = "applied-date-header";
 
-    const title = document.createElement("div");
-    title.className = "job-title";
-    title.textContent = job.title || "Untitled";
+    const heading = document.createElement("div");
+    heading.className = "applied-date-heading";
+    heading.textContent = formatAppliedDateHeading(group.dateKey);
 
-    const meta = document.createElement("div");
-    meta.className = "job-meta";
+    const count = document.createElement("span");
+    count.className = "applied-date-count";
+    count.textContent = group.dateKey === getLocalDateKey()
+      ? `${group.jobs.length}/${DAILY_APPLICATION_LIMIT} today`
+      : `${group.jobs.length} ${group.jobs.length === 1 ? "application" : "applications"}`;
 
-    const parts = [];
-    if (job.company) parts.push(job.company);
-    if (job.handledAt) {
-      parts.push(new Date(job.handledAt).toISOString().slice(0, 10));
-    }
-    meta.textContent = parts.join(" · ") || "";
+    header.appendChild(heading);
+    header.appendChild(count);
+    groupSection.appendChild(header);
 
-    info.appendChild(title);
-    info.appendChild(meta);
-
-    const status = document.createElement("span");
-    const st = job.status || "prepared";
-    status.className = "job-status " + st;
-    status.textContent = st.replace("_", " ");
-
-    const right = document.createElement("div");
-    right.className = "applied-actions";
-    right.appendChild(status);
-
-    if (job.url) {
-      const openJob = document.createElement("button");
-      openJob.type = "button";
-      openJob.className = "applied-action";
-      openJob.textContent = "Open job";
-      openJob.addEventListener("click", () => openAppliedJobUrl(job.url));
-      right.appendChild(openJob);
+    for (const job of group.jobs) {
+      groupSection.appendChild(createAppliedJobItem(job));
     }
 
-    if (job.coverLetterPath) {
-      const downloadCoverLetter = document.createElement("button");
-      downloadCoverLetter.type = "button";
-      downloadCoverLetter.className = "applied-action";
-      downloadCoverLetter.textContent = "Download cover letter";
-      downloadCoverLetter.addEventListener("click", () => downloadAppliedCoverLetter(job.coverLetterPath));
-      right.appendChild(downloadCoverLetter);
-    }
-
-    item.appendChild(info);
-    item.appendChild(right);
-    appliedList.appendChild(item);
+    appliedList.appendChild(groupSection);
   }
+}
+
+function createAppliedJobItem(job) {
+  const item = document.createElement("div");
+  item.className = "applied-item";
+
+  const info = document.createElement("div");
+  info.className = "applied-info";
+
+  const title = document.createElement("div");
+  title.className = "job-title";
+  title.textContent = job.title || "Untitled";
+
+  const meta = document.createElement("div");
+  meta.className = "job-meta";
+
+  const parts = [];
+  if (job.company) parts.push(job.company);
+  if (job.handledAt) parts.push(formatAppliedTime(job.handledAt));
+  meta.textContent = parts.join(" · ") || "";
+
+  info.appendChild(title);
+  info.appendChild(meta);
+
+  const status = document.createElement("span");
+  const st = job.status || "prepared";
+  status.className = "job-status " + st;
+  status.textContent = st.replace("_", " ");
+
+  const right = document.createElement("div");
+  right.className = "applied-actions";
+  right.appendChild(status);
+
+  if (job.url) {
+    const openJob = document.createElement("button");
+    openJob.type = "button";
+    openJob.className = "applied-action";
+    openJob.textContent = "Open job";
+    openJob.addEventListener("click", () => openAppliedJobUrl(job.url));
+    right.appendChild(openJob);
+  }
+
+  if (job.coverLetterPath) {
+    const downloadCoverLetter = document.createElement("button");
+    downloadCoverLetter.type = "button";
+    downloadCoverLetter.className = "applied-action";
+    downloadCoverLetter.textContent = "Download cover letter";
+    downloadCoverLetter.addEventListener("click", () => downloadAppliedCoverLetter(job.coverLetterPath));
+    right.appendChild(downloadCoverLetter);
+  }
+
+  item.appendChild(info);
+  item.appendChild(right);
+  return item;
+}
+
+function groupJobsByDate(jobs) {
+  const sorted = [...jobs].sort((a, b) => getHandledTimestamp(b) - getHandledTimestamp(a));
+  const groups = new Map();
+
+  for (const job of sorted) {
+    const dateKey = getLocalDateKey(job.handledAt) || "unknown";
+    if (!groups.has(dateKey)) groups.set(dateKey, []);
+    groups.get(dateKey).push(job);
+  }
+
+  return Array.from(groups, ([dateKey, groupJobs]) => ({ dateKey, jobs: groupJobs }));
+}
+
+function getHandledTimestamp(job) {
+  const timestamp = new Date(job?.handledAt || 0).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function getLocalDateKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatAppliedDateHeading(dateKey) {
+  if (!dateKey || dateKey === "unknown") return "Unknown date";
+
+  const today = getLocalDateKey();
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = getLocalDateKey(yesterdayDate);
+
+  if (dateKey === today) return "Today";
+  if (dateKey === yesterday) return "Yesterday";
+
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  }).format(date);
+}
+
+function formatAppliedTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function clampApplicationLimit(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return 10;
+  return Math.min(Math.max(Math.floor(number), 1), DAILY_APPLICATION_LIMIT);
 }
 
 async function openAppliedJobUrl(url) {
@@ -795,6 +886,9 @@ coverLetterToneInput.addEventListener("keydown", (event) => {
 });
 coverLetterWordLimitInput.addEventListener("blur", () => {
   coverLetterWordLimitInput.value = Math.min(Math.max(Number(coverLetterWordLimitInput.value) || 280, 120), 500);
+});
+maxApplicationsInput.addEventListener("blur", () => {
+  maxApplicationsInput.value = clampApplicationLimit(maxApplicationsInput.value);
 });
 
 settingsToggle.addEventListener("click", toggleSettings);

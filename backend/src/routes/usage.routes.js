@@ -4,7 +4,7 @@ import { costLog } from "../db.js";
 const router = Router();
 
 const MAX_AI = parseInt(process.env.DAILY_AI_GENERATIONS, 10) || 20;
-const MAX_APPS = parseInt(process.env.DAILY_APPLICATIONS, 10) || 10;
+const MAX_APPS = parseInt(process.env.DAILY_APPLICATIONS, 10) || 50;
 
 router.get("/me", (req, res) => {
   const user = req.user;

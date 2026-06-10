@@ -9,13 +9,13 @@ const PLANS = {
     price: 0,
     features: [
       "20 AI generations per day",
-      "10 job applications per day",
+      "50 job applications per day",
       "Budget AI models",
       "Review before submit"
     ],
     limits: {
       aiGenerationsPerDay: 20,
-      applicationsPerDay: 10
+      applicationsPerDay: 50
     }
   },
   pro: {
