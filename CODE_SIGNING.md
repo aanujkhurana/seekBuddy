@@ -79,11 +79,23 @@ npm run build:mac
 npm run build:mac
 ```
 
+`npm run build:mac` intentionally fails if Developer ID signing or Apple
+notarization credentials are missing. This prevents accidentally sharing a DMG
+that opens on the build Mac but fails on another Mac after AirDrop/download.
+
 electron-builder will:
 1. Sign the `.app` bundle with your Developer ID certificate
 2. Upload it to Apple's notary service
 3. Staple the notarization ticket to the app
 4. Package everything into a DMG
+
+For local-only testing, use:
+
+```bash
+npm run build:mac:unsigned
+```
+
+Do not send unsigned builds to other users.
 
 ## Verify Signing & Notarization
 
@@ -120,6 +132,36 @@ The notarization didn't staple. Run:
 xcrun stapler staple "dist/mac-arm64/Seek Apply Assistant.app"
 ```
 Then rebuild the DMG.
+
+### "The app is damaged/corrupted and cannot be opened. Move to Bin"
+This usually means macOS Gatekeeper is rejecting a quarantined copy because the
+app is unsigned, incorrectly signed, or not notarized. AirDrop and browser
+downloads add quarantine metadata, so an app can open on the build Mac but fail
+on a friend's Mac.
+
+Check the installed app/DMG:
+
+```bash
+codesign --verify --deep --strict --verbose=4 "dist/mac-arm64/Seek Apply Assistant.app"
+xcrun stapler validate "dist/Seek Apply Assistant-1.0.0-arm64.dmg"
+spctl --assess --type open --context context:primary-signature --verbose=4 "dist/Seek Apply Assistant-1.0.0-arm64.dmg"
+```
+
+The real fix is to build with a **Developer ID Application** certificate and
+successful notarization:
+
+```bash
+source .env.signing
+npm run build:mac
+```
+
+As a temporary local workaround only, the recipient can remove quarantine:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Seek Apply Assistant.app"
+```
+
+Do not use the quarantine workaround for public distribution.
 
 ## CI/CD (GitHub Actions)
 
