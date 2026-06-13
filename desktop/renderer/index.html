@@ -136,6 +136,38 @@
         <span id="statusIndicator" class="status-dot idle"></span>
         <span id="statusLabel">Idle</span>
       </div>
+      <div id="reliabilityDashboard" class="run-dashboard" aria-label="Automation progress">
+        <div class="run-step" data-run-step="logged_in">
+          <span class="run-step-dot"></span>
+          <span class="run-step-label">Logged in</span>
+          <span class="run-step-status">Waiting</span>
+        </div>
+        <div class="run-step" data-run-step="browser_ready">
+          <span class="run-step-dot"></span>
+          <span class="run-step-label">Browser ready</span>
+          <span class="run-step-status">Waiting</span>
+        </div>
+        <div class="run-step" data-run-step="search_opened">
+          <span class="run-step-dot"></span>
+          <span class="run-step-label">Search opened</span>
+          <span class="run-step-status">Waiting</span>
+        </div>
+        <div class="run-step" data-run-step="jobs_found">
+          <span class="run-step-dot"></span>
+          <span class="run-step-label">Jobs found</span>
+          <span class="run-step-status">Waiting</span>
+        </div>
+        <div class="run-step" data-run-step="reviewing">
+          <span class="run-step-dot"></span>
+          <span class="run-step-label">Applying/reviewing</span>
+          <span class="run-step-status">Waiting</span>
+        </div>
+        <div class="run-step" data-run-step="finished">
+          <span class="run-step-dot"></span>
+          <span class="run-step-label">Stopped/completed/error</span>
+          <span class="run-step-status">Waiting</span>
+        </div>
+      </div>
       <div class="log-panel">
         <pre id="logs"></pre>
         <p id="logsEmpty" class="logs-empty">No logs yet. Run to see logs.</p>

@@ -32,6 +32,9 @@ const contactPhoneInput = document.getElementById("contactPhoneInput");
 const contactWebsiteInput = document.getElementById("contactWebsiteInput");
 const logs = document.getElementById("logs");
 const logsEmpty = document.getElementById("logsEmpty");
+const reliabilitySteps = new Map(
+  Array.from(document.querySelectorAll("[data-run-step]")).map((element) => [element.dataset.runStep, element])
+);
 
 const aiModeSelect = document.getElementById("aiMode");
 const hostedSettings = document.getElementById("hostedSettings");
@@ -73,6 +76,7 @@ let searchLocations = [];
 let coverLetterTones = ["professional", "direct", "confident", "tailored"];
 let hasAppliedJobs = false;
 let resumeGenerationTarget = "";
+let currentAutomationStage = "idle";
 
 const THEME_STORAGE_KEY = "seekApplyAssistant.theme";
 
@@ -137,6 +141,7 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
       status.textContent = message;
     });
   }
+  updateLoginDashboardStep({ validated, inProgress, failed });
 }
 
 function openSettings() {
@@ -342,6 +347,87 @@ function setStatus(state) {
       }
     });
     updateResumeGenerationState();
+  }
+}
+
+function setReliabilityStep(id, state, statusText) {
+  const element = reliabilitySteps.get(id);
+  if (!element) return;
+  element.dataset.state = state;
+  const status = element.querySelector(".run-step-status");
+  if (status) status.textContent = statusText;
+}
+
+function updateLoginDashboardStep({ validated, inProgress = false, failed = false }) {
+  if (validated) {
+    setReliabilityStep("logged_in", "done", "SEEK session valid");
+  } else if (inProgress) {
+    setReliabilityStep("logged_in", "active", "Checking");
+  } else if (failed) {
+    setReliabilityStep("logged_in", "error", "Needs login");
+  } else {
+    setReliabilityStep("logged_in", "warn", "Not logged in");
+  }
+}
+
+function resetRunDashboard() {
+  currentAutomationStage = "idle";
+  updateLoginDashboardStep({ validated: loginValidated, inProgress: loginInProgress });
+  ["browser_ready", "search_opened", "jobs_found", "reviewing", "finished"].forEach((id) => {
+    setReliabilityStep(id, "", "Waiting");
+  });
+}
+
+function completeStep(id, statusText = "Done") {
+  setReliabilityStep(id, "done", statusText);
+}
+
+function applyAutomationProgress(progress = {}) {
+  currentAutomationStage = progress.stage || currentAutomationStage;
+  const message = progress.message || "";
+
+  if (currentAutomationStage === "starting") {
+    resetRunDashboard();
+    setReliabilityStep("browser_ready", "active", message || "Starting");
+    return;
+  }
+  if (currentAutomationStage === "browser_ready") {
+    completeStep("browser_ready", "Ready");
+    setReliabilityStep("search_opened", "active", "Opening search");
+    return;
+  }
+  if (currentAutomationStage === "search_opened") {
+    completeStep("browser_ready", "Ready");
+    completeStep("search_opened", "Opened");
+    setReliabilityStep("jobs_found", "active", "Scanning jobs");
+    return;
+  }
+  if (currentAutomationStage === "jobs_found") {
+    completeStep("browser_ready", "Ready");
+    completeStep("search_opened", "Opened");
+    completeStep("jobs_found", "Found");
+    setReliabilityStep("reviewing", "active", "Reviewing jobs");
+    return;
+  }
+  if (currentAutomationStage === "reviewing") {
+    completeStep("browser_ready", "Ready");
+    completeStep("search_opened", "Opened");
+    completeStep("jobs_found", "Found");
+    setReliabilityStep("reviewing", "active", message || "Preparing");
+    return;
+  }
+  if (currentAutomationStage === "completed") {
+    completeStep("browser_ready", "Ready");
+    setReliabilityStep("reviewing", "done", "Finished");
+    setReliabilityStep("finished", "done", message || "Completed");
+    return;
+  }
+  if (currentAutomationStage === "stopped") {
+    setReliabilityStep("finished", "warn", message || "Stopped");
+    return;
+  }
+  if (currentAutomationStage === "error") {
+    setReliabilityStep("finished", "error", message || "Error");
   }
 }
 
@@ -977,6 +1063,7 @@ document.getElementById("start").addEventListener("click", async () => {
   await window.seekApp.saveConfig(getConfig());
   logs.textContent = "";
   updateLogsEmptyState();
+  resetRunDashboard();
   appendLog("Starting automation...");
   const result = await window.seekApp.startAutomation();
   if (!result.success) appendLog(result.message);
@@ -1072,6 +1159,10 @@ window.seekApp.onAppliedJobsUpdated(() => {
 
 window.seekApp.onStatusChange((status) => {
   setStatus(status);
+});
+
+window.seekApp.onAutomationProgress((progress) => {
+  applyAutomationProgress(progress);
 });
 
 window.addEventListener("beforeunload", () => {
@@ -1177,6 +1268,7 @@ async function init() {
     inProgress: false,
     message: login.message || (login.validated ? "SEEK login saved for this app session." : "Sign in manually before configuring applications.")
   });
+  resetRunDashboard();
   await loadUsageDashboard();
 }
 

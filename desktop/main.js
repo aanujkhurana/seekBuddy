@@ -17,6 +17,7 @@ let loginProcess = null;
 let loginSessionValidated = false;
 let runningStopTimer = null;
 let runningStopFallbackTimer = null;
+let runningStopRequested = false;
 
 function getUserDataPath() {
   const dir = path.join(app.getPath("userData"), "seek-apply-assistant");
@@ -47,6 +48,38 @@ function createWindow() {
 function send(channel, data) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(channel, data);
+  }
+}
+
+function sendAutomationProgress(stage, message, details = {}) {
+  send("automation-progress", {
+    stage,
+    message,
+    at: new Date().toISOString(),
+    ...details
+  });
+}
+
+function inspectAutomationOutput(text) {
+  for (const line of String(text).split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    if (line.includes("[ERROR]") || line.includes("[CRASH]")) {
+      sendAutomationProgress("error", "Automation hit an error. Check logs for details.");
+      continue;
+    }
+    if (/Browser launched/i.test(line)) {
+      sendAutomationProgress("browser_ready", "Browser ready.");
+    } else if (/Opening SEEK search/i.test(line)) {
+      sendAutomationProgress("search_opened", "SEEK search opened.");
+    } else if (/Search complete/i.test(line)) {
+      sendAutomationProgress("jobs_found", "Jobs found for this search.");
+    } else if (/Opening job page|Opening apply flow|Filling application|Application prepared|Prepared application tabs/i.test(line)) {
+      sendAutomationProgress("reviewing", "Preparing an application for review.");
+    } else if (/Apply run complete/i.test(line)) {
+      sendAutomationProgress("completed", "Run completed.");
+    } else if (/Automation stopped by user|Stopping safely/i.test(line)) {
+      sendAutomationProgress("stopped", "Stopping after the current safe point.");
+    }
   }
 }
 
@@ -338,22 +371,28 @@ ipcMain.handle("start-automation", async () => {
   }
 
   send("automation-log", "[INFO] Starting automation engine...\n");
+  sendAutomationProgress("starting", "Starting automation engine.");
   const proc = spawnScript("src/seek-apply.js", extraEnv);
   runningProcess = proc;
+  runningStopRequested = false;
   let sawAutomationOutput = false;
 
   const forwardOutput = (data) => {
     sawAutomationOutput = true;
-    send("automation-log", data.toString());
+    const text = data.toString();
+    inspectAutomationOutput(text);
+    send("automation-log", text);
   };
 
   proc.on("spawn", () => {
     send("automation-log", "[INFO] Automation process launched.\n");
+    sendAutomationProgress("starting", "Automation process launched.");
   });
 
   proc.on("error", (error) => {
     clearTimeout(startupWatchdog);
     send("automation-log", `[ERROR] Could not launch automation: ${error.message}\n`);
+    sendAutomationProgress("error", "Could not launch automation.");
     send("automation-stopped");
     send("automation-status", "idle");
     if (runningProcess === proc) runningProcess = null;
@@ -375,6 +414,14 @@ ipcMain.handle("start-automation", async () => {
     runningStopTimer = null;
     runningStopFallbackTimer = null;
     send("automation-log", `[INFO] Process exited with code ${code}\n`);
+    if (runningStopRequested) {
+      sendAutomationProgress("stopped", "Automation stopped.");
+    } else if (code === 0) {
+      sendAutomationProgress("completed", "Run completed.");
+    } else {
+      sendAutomationProgress("error", "Automation exited before completing.");
+    }
+    runningStopRequested = false;
     send("automation-stopped");
     send("automation-status", "idle");
     if (runningProcess === proc) runningProcess = null;
@@ -392,6 +439,8 @@ ipcMain.handle("stop-automation", async () => {
 
   const proc = runningProcess;
   send("automation-status", "stopped");
+  runningStopRequested = true;
+  sendAutomationProgress("stopped", "Stopping automation after the current job.");
   proc.kill("SIGTERM");
 
   if (runningStopTimer) clearTimeout(runningStopTimer);

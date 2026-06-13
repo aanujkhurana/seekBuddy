@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld("seekApp", {
   onLoginStatus: (cb) => { ipcRenderer.on("login-status", (_e, d) => cb(d)); },
   onAppliedJobsUpdated: (cb) => { ipcRenderer.on("applied-jobs-updated", () => cb()); },
   onStatusChange: (cb) => { ipcRenderer.on("automation-status", (_e, d) => cb(d)); },
+  onAutomationProgress: (cb) => { ipcRenderer.on("automation-progress", (_e, d) => cb(d)); },
   getAutomationStatus: () => ipcRenderer.invoke("get-automation-status"),
   getUsageStats: () => ipcRenderer.invoke("get-usage-stats"),
   getBillingPlans: () => ipcRenderer.invoke("get-billing-plans"),
