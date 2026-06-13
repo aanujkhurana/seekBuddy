@@ -21,7 +21,7 @@ export const DEFAULTS = Object.freeze({
   location: "",
   maxApplications: 10,
   reviewBeforeApply: true,
-  slowMoMs: 80,
+  slowMoMs: 0,
   browserProfileDir: ".playwright-seek-profile",
   contactName: "",
   contactEmail: "",

@@ -38,6 +38,7 @@ let dailyApplicationsToday = countApplicationsForDate(handledApplications, getLo
 const requestedRunLimit = normalizeApplicationLimit(config.maxApplications);
 const availableToday = Math.max(DAILY_APPLICATION_LIMIT - dailyApplicationsToday, 0);
 const runApplicationLimit = Math.min(requestedRunLimit, availableToday);
+const slowMoMs = Math.max(Number(config.slowMoMs) || 0, 0);
 
 ensureDir(dataDir);
 ensureDir("out/cover-letters");
@@ -63,7 +64,7 @@ logStep("Launching browser", {
 });
 const context = await chromium.launchPersistentContext(config.browserProfileDir, {
   headless: false,
-  slowMo: config.slowMoMs
+  slowMo: slowMoMs
 });
 logSuccess("Browser launched");
 

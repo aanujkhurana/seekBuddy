@@ -51,11 +51,13 @@ function send(channel, data) {
 }
 
 function spawnScript(scriptRelPath, env, args = []) {
-  return spawn(process.execPath, [path.join(ROOT, scriptRelPath), ...args], {
+  const scriptPath = path.join(ROOT, scriptRelPath);
+  return spawn(process.execPath, [scriptPath, ...args], {
     cwd: ROOT,
     stdio: ["pipe", "pipe", "pipe"],
     env: {
       ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
       USER_DATA_DIR: getUserDataPath(),
       PLAYWRIGHT_BROWSERS_PATH: getPlaywrightCacheDir(),
       ...env
@@ -130,6 +132,7 @@ async function promptInstallBrowsers() {
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
+        ELECTRON_RUN_AS_NODE: "1",
         PLAYWRIGHT_BROWSERS_PATH: getPlaywrightBrowsersPath()
       }
     });
@@ -334,13 +337,39 @@ ipcMain.handle("start-automation", async () => {
     }
   }
 
+  send("automation-log", "[INFO] Starting automation engine...\n");
   const proc = spawnScript("src/seek-apply.js", extraEnv);
   runningProcess = proc;
+  let sawAutomationOutput = false;
 
-  proc.stdout.on("data", (data) => send("automation-log", data.toString()));
-  proc.stderr.on("data", (data) => send("automation-log", data.toString()));
+  const forwardOutput = (data) => {
+    sawAutomationOutput = true;
+    send("automation-log", data.toString());
+  };
+
+  proc.on("spawn", () => {
+    send("automation-log", "[INFO] Automation process launched.\n");
+  });
+
+  proc.on("error", (error) => {
+    clearTimeout(startupWatchdog);
+    send("automation-log", `[ERROR] Could not launch automation: ${error.message}\n`);
+    send("automation-stopped");
+    send("automation-status", "idle");
+    if (runningProcess === proc) runningProcess = null;
+  });
+
+  const startupWatchdog = setTimeout(() => {
+    if (runningProcess === proc && !sawAutomationOutput) {
+      send("automation-log", "[WARN] Automation has started but has not produced logs yet. If this stays here, stop and restart the app.\n");
+    }
+  }, 7000);
+
+  proc.stdout.on("data", forwardOutput);
+  proc.stderr.on("data", forwardOutput);
 
   proc.on("close", (code) => {
+    clearTimeout(startupWatchdog);
     if (runningStopTimer) clearTimeout(runningStopTimer);
     if (runningStopFallbackTimer) clearTimeout(runningStopFallbackTimer);
     runningStopTimer = null;
@@ -773,6 +802,7 @@ ipcMain.handle("install-browsers", async () => {
     stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
       PLAYWRIGHT_BROWSERS_PATH: getPlaywrightBrowsersPath()
     }
   });

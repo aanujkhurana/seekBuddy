@@ -8,10 +8,11 @@ const config = loadConfig();
 const checkOnly = process.argv.includes("--check-only");
 const desktopLogin = process.env.SEEK_ASSISTANT_DESKTOP_LOGIN === "1";
 const DESKTOP_LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
+const slowMoMs = Math.max(Number(config.slowMoMs) || 0, 0);
 
 const context = await chromium.launchPersistentContext(config.browserProfileDir, {
   headless: false,
-  slowMo: config.slowMoMs
+  slowMo: slowMoMs
 });
 
 const page = context.pages()[0] || (await context.newPage());

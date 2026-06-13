@@ -92,7 +92,7 @@ describe("mergeConfig", () => {
   it("preserves DEFAULTS keys not mentioned in existing or incoming", () => {
     const result = mergeConfig({ email: "x@x.com" }, { maxApplications: 20 });
     assert.equal(result.browserProfileDir, DEFAULTS.browserProfileDir);
-    assert.equal(result.slowMoMs, 80);
+    assert.equal(result.slowMoMs, 0);
     assert.equal(result.reviewBeforeApply, true);
   });
 

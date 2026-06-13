@@ -361,6 +361,7 @@ function getConfig() {
     location: locationsForConfig.join(", "),
     maxApplications,
     reviewBeforeApply: reviewBeforeApplyInput.checked,
+    slowMoMs: 0,
     resumePath,
     coverLetterPath: "",
     coverLetterText: (coverLetterTextInput?.value || "").trim(),
