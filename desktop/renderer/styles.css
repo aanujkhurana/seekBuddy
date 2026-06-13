@@ -1,48 +1,39 @@
 .app {
-  width: min(100% - 48px, 1120px);
+  max-width: 900px;
   margin: 0 auto;
-  padding: 0 0 48px;
+  padding: 32px;
 }
 
 .hero {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  width: calc(100% + 48px);
-  margin: 0 -24px 24px;
-  padding: 14px 24px;
-  background: color-mix(in srgb, var(--g-sys-color-surface-container-lowest) 90%, transparent);
-  border-bottom: 1px solid var(--g-sys-color-outline-variant);
-  backdrop-filter: blur(18px);
+  margin-bottom: 24px;
 }
 
 .hero-row {
-  min-height: 56px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
 }
 
 .hero h1 {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 0;
-  font: var(--g-type-title-large);
+  gap: 14px;
+  margin: 0 0 8px;
+  font: var(--g-type-display-small);
 }
 
 .hero-logo {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   flex: 0 0 auto;
   filter: none;
 }
 
 .hero p {
-  margin: 2px 0 0 52px;
+  margin: 0;
   color: var(--g-sys-color-on-surface-variant);
-  font: var(--g-type-body-small);
+  font: var(--g-type-body-medium);
 }
 
 .header-actions {
@@ -51,6 +42,7 @@
   justify-content: flex-end;
   gap: 10px;
   flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 .theme-btn,
@@ -284,49 +276,14 @@ html[data-theme="dark"] .theme-icon-dark {
   min-height: 18px;
 }
 
-@media (min-width: 980px) {
-  body.logged-in:not(.settings-open) .app {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
-    column-gap: 16px;
-    align-items: start;
-  }
-
-  body.logged-in:not(.settings-open) .hero {
-    grid-column: 1 / -1;
-  }
-
-  body.logged-in:not(.settings-open) #searchCriteriaCard {
-    grid-column: 1;
-    grid-row: 2 / span 2;
-  }
-
-  body.logged-in:not(.settings-open) .controls-logs-card {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  body.logged-in:not(.settings-open) #appliedSection {
-    grid-column: 2;
-    grid-row: 3;
-  }
-
-  .settings-page {
-    max-width: 920px;
-    margin: 0 auto;
-  }
-}
-
 @media (max-width: 720px) {
   .app {
-    width: 100%;
     padding: 0 16px 32px;
   }
 
   .hero {
-    width: calc(100% + 32px);
-    margin: 0 -16px 18px;
-    padding: 12px 16px;
+    margin: 0 0 18px;
+    padding-top: 16px;
   }
 
   .hero-row {
