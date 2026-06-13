@@ -126,8 +126,37 @@
     </section>
 
     <section class="card controls-logs-card" data-login-required data-main-page>
+      <div class="run-preview" id="runPreview">
+        <div class="run-preview-title">Run Preview</div>
+        <div class="run-preview-grid">
+          <div class="run-preview-item">
+            <span>Searches</span>
+            <strong id="previewSearches">0 searches</strong>
+          </div>
+          <div class="run-preview-item">
+            <span>Max applications</span>
+            <strong id="previewMaxApplications">10</strong>
+          </div>
+          <div class="run-preview-item">
+            <span>Review mode</span>
+            <strong id="previewReviewMode">On</strong>
+          </div>
+          <div class="run-preview-item">
+            <span>AI</span>
+            <strong id="previewAIStatus">Needs setup</strong>
+          </div>
+          <div class="run-preview-item">
+            <span>Resume</span>
+            <strong id="previewResumeStatus">Not uploaded</strong>
+          </div>
+          <div class="run-preview-item">
+            <span>Cover letter</span>
+            <strong id="previewCoverLetterStatus">Fallback template</strong>
+          </div>
+        </div>
+      </div>
       <div class="actions">
-        <button id="start" class="primary">Start</button>
+        <button id="start" class="primary">Start applying to up to 10 jobs</button>
         <button id="stop" class="danger" style="display:none">Stop</button>
         <button id="continueBtn" class="continue" style="display:none">Continue</button>
       </div>

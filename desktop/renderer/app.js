@@ -59,6 +59,12 @@ const startBtn = document.getElementById("start");
 const stopBtn = document.getElementById("stop");
 const continueBtn = document.getElementById("continueBtn");
 const aiNotReadyHint = document.getElementById("startHint");
+const previewSearches = document.getElementById("previewSearches");
+const previewMaxApplications = document.getElementById("previewMaxApplications");
+const previewReviewMode = document.getElementById("previewReviewMode");
+const previewAIStatus = document.getElementById("previewAIStatus");
+const previewResumeStatus = document.getElementById("previewResumeStatus");
+const previewCoverLetterStatus = document.getElementById("previewCoverLetterStatus");
 const appliedList = document.getElementById("appliedList");
 const clearAppliedBtn = document.getElementById("clearApplied");
 const exportJobsBtn = document.getElementById("exportJobs");
@@ -582,15 +588,46 @@ function updateAIConfiguredState() {
 }
 
 function updateStartButtonState() {
+  const { titles, locations } = getPendingSearchValues();
   const missing = [];
-  if (!jobTitles.length) missing.push("Add at least one <b>job title</b>");
-  if (!searchLocations.length) missing.push("Add at least one <b>location</b>");
+  if (!titles.length) missing.push("Add at least one <b>job title</b>");
+  if (!locations.length) missing.push("Add at least one <b>location</b>");
   if (!isAIConfigured()) missing.push('<button class="hint-link">Open Settings</button> and configure <b>AI credentials</b>');
 
   const ready = missing.length === 0;
   startBtn.disabled = !ready;
   aiNotReadyHint.style.display = ready ? "none" : "";
   aiNotReadyHint.innerHTML = missing.join(". ") + ".";
+  updateRunPreview();
+}
+
+function getPendingSearchValues() {
+  return {
+    titles: addUniqueValue(jobTitles, jobTitleInput.value),
+    locations: addUniqueValue(searchLocations, searchLocationInput.value)
+  };
+}
+
+function pluralize(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function updateRunPreview() {
+  const { titles, locations } = getPendingSearchValues();
+  const searchCount = titles.length * locations.length;
+  const maxApplications = clampApplicationLimit(maxApplicationsInput.value);
+  const hasResume = Boolean(resumePath);
+  const hasCoverLetterText = Boolean((coverLetterTextInput?.value || "").trim());
+
+  previewSearches.textContent = searchCount
+    ? `${pluralize(searchCount, "search")} (${titles.length} x ${locations.length})`
+    : "0 searches";
+  previewMaxApplications.textContent = `Up to ${maxApplications}`;
+  previewReviewMode.textContent = reviewBeforeApplyInput.checked ? "On" : "Off";
+  previewAIStatus.textContent = isAIConfigured() ? "Configured" : "Needs setup";
+  previewResumeStatus.textContent = hasResume ? "Uploaded" : "Not uploaded";
+  previewCoverLetterStatus.textContent = hasCoverLetterText ? "Reference ready" : "Fallback template";
+  startBtn.textContent = `Start applying to up to ${maxApplications} ${maxApplications === 1 ? "job" : "jobs"}`;
 }
 
 function getResumeGenerationMessage(kind) {
@@ -641,6 +678,7 @@ function updateResumeGenerationState(messages = {}) {
   if (resumeGenerationTarget === "summary") {
     summaryGenerationStatus.textContent = "Generating a resume summary from your uploaded resume...";
   }
+  updateRunPreview();
 }
 
 function getAIConfig() {
@@ -979,6 +1017,7 @@ generateSummaryFromResumeBtn.addEventListener("click", () => {
 });
 
 addJobTitleBtn.addEventListener("click", addJobTitle);
+jobTitleInput.addEventListener("input", updateStartButtonState);
 jobTitleInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
@@ -987,6 +1026,7 @@ jobTitleInput.addEventListener("keydown", (event) => {
 });
 
 addLocationBtn.addEventListener("click", addSearchLocation);
+searchLocationInput.addEventListener("input", updateStartButtonState);
 searchLocationInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
@@ -1006,9 +1046,12 @@ coverLetterWordLimitInput.addEventListener("blur", () => {
   updateTextAreaWordCounts();
 });
 coverLetterWordLimitInput.addEventListener("input", updateTextAreaWordCounts);
+maxApplicationsInput.addEventListener("input", updateRunPreview);
 maxApplicationsInput.addEventListener("blur", () => {
   maxApplicationsInput.value = clampApplicationLimit(maxApplicationsInput.value);
+  updateRunPreview();
 });
+reviewBeforeApplyInput.addEventListener("change", updateRunPreview);
 
 settingsToggle.addEventListener("click", toggleSettings);
 settingsBack.addEventListener("click", closeSettings);
