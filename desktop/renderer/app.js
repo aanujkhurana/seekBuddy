@@ -20,6 +20,8 @@ const reviewBeforeApplyInput = document.getElementById("reviewBeforeApply");
 const resumePathText = document.getElementById("resumePath");
 const coverLetterTextInput = document.getElementById("coverLetterText");
 const resumeSummaryInput = document.getElementById("resumeSummary");
+const coverLetterWordCount = document.getElementById("coverLetterWordCount");
+const resumeSummaryWordCount = document.getElementById("resumeSummaryWordCount");
 const generateCoverLetterFromResumeBtn = document.getElementById("generateCoverLetterFromResume");
 const coverLetterGenerationStatus = document.getElementById("coverLetterGenerationStatus");
 const generateSummaryFromResumeBtn = document.getElementById("generateSummaryFromResume");
@@ -347,6 +349,32 @@ function updateLogsEmptyState() {
   logsEmpty.style.display = logs.textContent.trim() ? "none" : "";
 }
 
+function countWords(value) {
+  return (String(value || "").match(/[\p{L}\p{N}]+(?:['\u2019][\p{L}\p{N}]+)?/gu) || []).length;
+}
+
+function formatWordCount(count) {
+  return `${count} ${count === 1 ? "word" : "words"}`;
+}
+
+function getCoverLetterWordLimit() {
+  return Math.min(Math.max(Number(coverLetterWordLimitInput.value) || 280, 120), 500);
+}
+
+function updateTextAreaWordCounts() {
+  const coverLetterWords = countWords(coverLetterTextInput?.value || "");
+  const coverLetterLimit = getCoverLetterWordLimit();
+  if (coverLetterWordCount) {
+    coverLetterWordCount.textContent = `${formatWordCount(coverLetterWords)} / ${coverLetterLimit} limit`;
+    coverLetterWordCount.classList.toggle("over-limit", coverLetterWords > coverLetterLimit);
+  }
+
+  if (resumeSummaryWordCount) {
+    const resumeSummaryWords = countWords(resumeSummaryInput?.value || "");
+    resumeSummaryWordCount.textContent = formatWordCount(resumeSummaryWords);
+  }
+}
+
 function getConfig() {
   const titlesForConfig = addUniqueValue(jobTitles, jobTitleInput.value);
   const locationsForConfig = addUniqueValue(searchLocations, searchLocationInput.value);
@@ -501,6 +529,8 @@ function getResumeGenerationMessage(kind) {
 }
 
 function updateResumeGenerationState(messages = {}) {
+  updateTextAreaWordCounts();
+
   const hasResume = Boolean(resumePath);
   const aiConfigured = isAIConfigured();
   const isBusy = Boolean(resumeGenerationTarget);
@@ -887,7 +917,9 @@ coverLetterToneInput.addEventListener("keydown", (event) => {
 });
 coverLetterWordLimitInput.addEventListener("blur", () => {
   coverLetterWordLimitInput.value = Math.min(Math.max(Number(coverLetterWordLimitInput.value) || 280, 120), 500);
+  updateTextAreaWordCounts();
 });
+coverLetterWordLimitInput.addEventListener("input", updateTextAreaWordCounts);
 maxApplicationsInput.addEventListener("blur", () => {
   maxApplicationsInput.value = clampApplicationLimit(maxApplicationsInput.value);
 });

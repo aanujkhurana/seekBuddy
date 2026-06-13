@@ -276,6 +276,18 @@ html[data-theme="dark"] .theme-icon-dark {
   min-height: 18px;
 }
 
+.textarea-meta {
+  min-height: 18px;
+  margin: 6px 0 0;
+  color: var(--g-sys-color-on-surface-variant);
+  font: var(--g-type-label-medium);
+  text-align: right;
+}
+
+.textarea-meta.over-limit {
+  color: var(--g-sys-color-warning);
+}
+
 @media (max-width: 720px) {
   .app {
     padding: 0 16px 32px;

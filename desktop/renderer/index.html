@@ -185,6 +185,7 @@
       <h3 class="subheading"><span class="heading-icon" data-icon="mail"></span>Cover Letter</h3>
       <label for="coverLetterText">Cover Letter</label>
       <textarea id="coverLetterText" rows="6" placeholder="Paste your base cover letter here, or generate one from your uploaded resume."></textarea>
+      <div id="coverLetterWordCount" class="textarea-meta" aria-live="polite">0 words / 280 limit</div>
       <p class="hint">This cover letter is used as a reference. AI will write a tailored cover letter when available and fall back to this text if AI cannot connect.</p>
       <div class="actions document-actions">
         <button id="generateCoverLetterFromResume" class="secondary-action" disabled>Generate Cover Letter from Resume</button>
@@ -212,6 +213,7 @@
 
       <label for="resumeSummary">Resume Summary — paste key experience points for AI context</label>
       <textarea id="resumeSummary" rows="4" placeholder="e.g. 5 years React & TypeScript at two startups. Built design systems from scratch. Led a team of 3 frontend devs. Strong UX instincts."></textarea>
+      <div id="resumeSummaryWordCount" class="textarea-meta" aria-live="polite">0 words</div>
       <p class="hint">The AI uses this to tailor cover letters and screening answers. Each line becomes a bullet point.</p>
       <div class="actions document-actions">
         <button id="generateSummaryFromResume" class="secondary-action" disabled>Generate Summary from Resume</button>
