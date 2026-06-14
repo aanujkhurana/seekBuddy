@@ -126,6 +126,20 @@
     </section>
 
     <section class="card controls-logs-card" data-login-required data-main-page>
+      <div class="control-dashboard">
+        <div class="daily-limit-panel" aria-live="polite">
+          <div class="panel-kicker">Daily allowance</div>
+          <div id="dailyLimitValue" class="daily-limit-value">0 / 50</div>
+          <div id="dailyLimitRemaining" class="daily-limit-remaining">50 applications remaining today</div>
+          <div class="usage-bar daily-limit-bar" aria-hidden="true">
+            <div id="dailyLimitFill" class="usage-fill"></div>
+          </div>
+        </div>
+        <div class="readiness-panel">
+          <div class="panel-kicker">Start readiness</div>
+          <ul id="readinessList" class="readiness-list" aria-live="polite"></ul>
+        </div>
+      </div>
       <div class="run-preview" id="runPreview">
         <div class="run-preview-title">Run Preview</div>
         <div class="run-preview-grid">
@@ -197,9 +211,25 @@
           <span class="run-step-status">Waiting</span>
         </div>
       </div>
+      <div id="runSummary" class="run-summary" aria-live="polite">
+        <div class="panel-kicker">Run summary</div>
+        <div id="runSummaryContent">
+          <p class="hint">No run summary yet.</p>
+        </div>
+      </div>
       <div class="log-panel">
         <pre id="logs"></pre>
         <p id="logsEmpty" class="logs-empty">No logs yet. Run to see logs.</p>
+      </div>
+    </section>
+
+    <section class="card" id="reviewQueueSection" data-login-required data-main-page>
+      <div class="card-title-row">
+        <h2><span class="heading-icon" data-icon="sparkles"></span>Ready for review</h2>
+        <span id="reviewQueueCount" class="settings-state warn">0 ready</span>
+      </div>
+      <div id="reviewQueueList" class="review-list">
+        <p class="hint">Prepared applications will appear here before you mark them submitted or skipped.</p>
       </div>
     </section>
 
@@ -211,6 +241,20 @@
           <button id="exportJobs" class="btn-sm" disabled>Export</button>
         </div>
       </div>
+      <div class="history-filters">
+        <input id="historySearch" placeholder="Search title, company, or URL" aria-label="Search applied jobs" />
+        <select id="historyStatusFilter" aria-label="Filter applied jobs by status">
+          <option value="all">All statuses</option>
+          <option value="prepared">Ready for review</option>
+          <option value="submitted">Submitted</option>
+          <option value="skipped">Skipped</option>
+          <option value="already_applied">Already applied</option>
+        </select>
+        <select id="historyDateFilter" aria-label="Filter applied jobs by date">
+          <option value="all">All dates</option>
+        </select>
+      </div>
+      <div id="historyTotals" class="history-totals" aria-live="polite"></div>
       <div id="appliedList" class="applied-list">
         <p class="hint">No jobs applied yet.</p>
       </div>

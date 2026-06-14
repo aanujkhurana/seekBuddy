@@ -25,6 +25,46 @@ function getUserDataPath() {
   return dir;
 }
 
+function getHandledApplicationsPath() {
+  return path.join(getUserDataPath(), "handled-applications.json");
+}
+
+function readHandledApplications() {
+  const filePath = getHandledApplicationsPath();
+  if (!fs.existsSync(filePath)) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHandledApplications(applications) {
+  fs.writeFileSync(getHandledApplicationsPath(), JSON.stringify(applications, null, 2));
+}
+
+function isPathInside(targetPath, rootPath) {
+  const relative = path.relative(rootPath, targetPath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function resolveAllowedUserFile(filePath) {
+  const sourcePath = path.isAbsolute(filePath || "")
+    ? filePath
+    : path.resolve(ROOT, filePath || "");
+  const allowedRoots = [
+    path.resolve(ROOT),
+    path.resolve(getUserDataPath())
+  ];
+  const isAllowed = allowedRoots.some((root) => isPathInside(sourcePath, root));
+
+  if (!filePath || !isAllowed || !fs.existsSync(sourcePath)) {
+    return null;
+  }
+  return sourcePath;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1000,
@@ -73,6 +113,8 @@ function inspectAutomationOutput(text) {
       sendAutomationProgress("search_opened", "SEEK search opened.");
     } else if (/Search complete/i.test(line)) {
       sendAutomationProgress("jobs_found", "Jobs found for this search.");
+    } else if (/Job queued for review/i.test(line)) {
+      send("review-queue-updated");
     } else if (/Opening job page|Opening apply flow|Filling application|Application prepared|Prepared application tabs/i.test(line)) {
       sendAutomationProgress("reviewing", "Preparing an application for review.");
     } else if (/Apply run complete/i.test(line)) {
@@ -344,12 +386,7 @@ ipcMain.handle("select-file", async (_, options) => {
 
 // ---- Automation ----
 
-ipcMain.handle("start-automation", async () => {
-  if (runningProcess) {
-    return { success: false, message: "Automation is already running." };
-  }
-
-  // Inject BYOK API key if configured
+function getAutomationExtraEnv() {
   const extraEnv = {};
   const configPath = path.join(getUserDataPath(), "config.json");
   if (fs.existsSync(configPath)) {
@@ -369,10 +406,21 @@ ipcMain.handle("start-automation", async () => {
       }
     }
   }
+  return extraEnv;
+}
 
-  send("automation-log", "[INFO] Starting automation engine...\n");
-  sendAutomationProgress("starting", "Starting automation engine.");
-  const proc = spawnScript("src/seek-apply.js", extraEnv);
+function launchAutomation(args = [], options = {}) {
+  if (runningProcess) {
+    return { success: false, message: "Automation is already running." };
+  }
+
+  const extraEnv = getAutomationExtraEnv();
+  const startLog = options.startLog || "[INFO] Starting automation engine...\n";
+  const startProgress = options.startProgress || "Starting automation engine.";
+
+  send("automation-log", startLog);
+  sendAutomationProgress("starting", startProgress);
+  const proc = spawnScript("src/seek-apply.js", extraEnv, args);
   runningProcess = proc;
   runningStopRequested = false;
   let sawAutomationOutput = false;
@@ -396,6 +444,7 @@ ipcMain.handle("start-automation", async () => {
     send("automation-stopped");
     send("automation-status", "idle");
     if (runningProcess === proc) runningProcess = null;
+    send("review-queue-updated");
   });
 
   const startupWatchdog = setTimeout(() => {
@@ -426,10 +475,25 @@ ipcMain.handle("start-automation", async () => {
     send("automation-status", "idle");
     if (runningProcess === proc) runningProcess = null;
     send("applied-jobs-updated");
+    send("review-queue-updated");
   });
 
   send("automation-status", "running");
   return { success: true };
+}
+
+ipcMain.handle("start-automation", async () => {
+  return launchAutomation();
+});
+
+ipcMain.handle("apply-queued-job", async (_, queueId) => {
+  if (!queueId) {
+    return { success: false, message: "Choose a queued job first." };
+  }
+  return launchAutomation(["--apply-queued", queueId], {
+    startLog: "[INFO] Preparing selected queued job...\n",
+    startProgress: "Preparing selected job."
+  });
 });
 
 ipcMain.handle("stop-automation", async () => {
@@ -761,14 +825,70 @@ ipcMain.handle("send-stdin", async (_, data) => {
 // ---- Applied jobs ----
 
 ipcMain.handle("load-applied-jobs", async () => {
-  const filePath = path.join(getUserDataPath(), "handled-applications.json");
+  return readHandledApplications();
+});
+
+function getReviewQueuePath() {
+  return path.join(getUserDataPath(), "application-review-queue.json");
+}
+
+function loadReviewQueue() {
+  const filePath = getReviewQueuePath();
   if (!fs.existsSync(filePath)) return [];
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function saveReviewQueue(queue) {
+  fs.writeFileSync(getReviewQueuePath(), JSON.stringify(queue, null, 2));
+}
+
+ipcMain.handle("load-review-queue", async () => {
+  return loadReviewQueue();
+});
+
+ipcMain.handle("skip-queued-job", async (_, queueId) => {
+  const queue = loadReviewQueue();
+  const index = queue.findIndex((item) => item.id === queueId);
+  if (index === -1) return { success: false, message: "Queued job was not found." };
+  queue[index] = {
+    ...queue[index],
+    status: "skipped",
+    skippedAt: new Date().toISOString()
+  };
+  saveReviewQueue(queue);
+  send("review-queue-updated");
+  return { success: true };
+});
+
+ipcMain.handle("update-applied-job-status", async (_, payload = {}) => {
+  const allowedStatuses = new Set(["prepared", "submitted", "skipped", "already_applied"]);
+  const status = String(payload.status || "").trim();
+  if (!allowedStatuses.has(status)) {
+    return { success: false, message: "Unsupported job status." };
+  }
+
+  const applications = readHandledApplications();
+  const index = applications.findIndex((job) => (
+    (payload.url && job.url === payload.url) ||
+    (payload.handledAt && job.handledAt === payload.handledAt)
+  ));
+
+  if (index === -1) {
+    return { success: false, message: "Could not find this job in local history." };
+  }
+
+  applications[index] = {
+    ...applications[index],
+    status,
+    reviewedAt: new Date().toISOString()
+  };
+  writeHandledApplications(applications);
+  send("applied-jobs-updated");
+  return { success: true, job: applications[index] };
 });
 
 ipcMain.handle("clear-applied", async () => {
-  const filePath = path.join(getUserDataPath(), "handled-applications.json");
-  fs.writeFileSync(filePath, "[]");
+  writeHandledApplications([]);
   return { success: true, output: "Applied history cleared." };
 });
 
@@ -799,18 +919,8 @@ ipcMain.handle("open-external-link", async (_, url) => {
 });
 
 ipcMain.handle("download-cover-letter", async (_, coverLetterPath) => {
-  const sourcePath = path.isAbsolute(coverLetterPath || "")
-    ? coverLetterPath
-    : path.resolve(ROOT, coverLetterPath || "");
-  const allowedRoots = [
-    path.resolve(ROOT),
-    path.resolve(getUserDataPath())
-  ];
-  const isAllowed = allowedRoots.some((root) =>
-    sourcePath === root || sourcePath.startsWith(`${root}${path.sep}`)
-  );
-
-  if (!coverLetterPath || !isAllowed || !fs.existsSync(sourcePath)) {
+  const sourcePath = resolveAllowedUserFile(coverLetterPath);
+  if (!sourcePath) {
     return { success: false, message: "Cover letter file is not available for this job." };
   }
 
@@ -829,6 +939,29 @@ ipcMain.handle("download-cover-letter", async (_, coverLetterPath) => {
 
   fs.copyFileSync(sourcePath, result.filePath);
   return { success: true, path: result.filePath };
+});
+
+ipcMain.handle("read-cover-letter", async (_, coverLetterPath) => {
+  const sourcePath = resolveAllowedUserFile(coverLetterPath);
+  if (!sourcePath) {
+    return { success: false, message: "Cover letter draft is not available for this job." };
+  }
+
+  return {
+    success: true,
+    content: fs.readFileSync(sourcePath, "utf8")
+  };
+});
+
+ipcMain.handle("open-cover-letter", async (_, coverLetterPath) => {
+  const sourcePath = resolveAllowedUserFile(coverLetterPath);
+  if (!sourcePath) {
+    return { success: false, message: "Cover letter draft is not available for this job." };
+  }
+
+  const error = await shell.openPath(sourcePath);
+  if (error) return { success: false, message: error };
+  return { success: true };
 });
 
 // ---- Browser check ----

@@ -68,6 +68,17 @@ const previewCoverLetterStatus = document.getElementById("previewCoverLetterStat
 const appliedList = document.getElementById("appliedList");
 const clearAppliedBtn = document.getElementById("clearApplied");
 const exportJobsBtn = document.getElementById("exportJobs");
+const dailyLimitValue = document.getElementById("dailyLimitValue");
+const dailyLimitRemaining = document.getElementById("dailyLimitRemaining");
+const dailyLimitFill = document.getElementById("dailyLimitFill");
+const readinessList = document.getElementById("readinessList");
+const runSummaryContent = document.getElementById("runSummaryContent");
+const reviewQueueCount = document.getElementById("reviewQueueCount");
+const reviewQueueList = document.getElementById("reviewQueueList");
+const historySearchInput = document.getElementById("historySearch");
+const historyStatusFilter = document.getElementById("historyStatusFilter");
+const historyDateFilter = document.getElementById("historyDateFilter");
+const historyTotals = document.getElementById("historyTotals");
 
 let resumePath = "";
 let coverLetterPath = "";
@@ -83,6 +94,10 @@ let coverLetterTones = ["professional", "direct", "confident", "tailored"];
 let hasAppliedJobs = false;
 let resumeGenerationTarget = "";
 let currentAutomationStage = "idle";
+let appliedJobsCache = [];
+let reviewQueueItems = [];
+let coverLetterPreviewCache = new Map();
+let runSummary = createEmptyRunSummary();
 
 const THEME_STORAGE_KEY = "seekApplyAssistant.theme";
 
@@ -148,6 +163,7 @@ function setLoginState({ validated, inProgress = false, failed = false, message 
     });
   }
   updateLoginDashboardStep({ validated, inProgress, failed });
+  updateStartButtonState();
 }
 
 function openSettings() {
@@ -191,6 +207,70 @@ function addUniqueValue(list, value) {
 
 const MAX_TONES = 5;
 const DAILY_APPLICATION_LIMIT = 50;
+
+function createEmptyRunSummary() {
+  return {
+    searches: 0,
+    searchedJobs: 0,
+    skippedDuplicates: 0,
+    alreadyApplied: 0,
+    prepared: 0,
+    failed: 0,
+    blocked: 0,
+    reasons: new Set(),
+    active: false
+  };
+}
+
+function getDailyApplicationsCount(jobs = appliedJobsCache) {
+  const today = getLocalDateKey();
+  return jobs.filter((job) => {
+    if (!job?.handledAt || job.dryRun) return false;
+    if (getLocalDateKey(job.handledAt) !== today) return false;
+    return (job.status || "prepared") !== "already_applied";
+  }).length;
+}
+
+function getDailyRemaining() {
+  return Math.max(DAILY_APPLICATION_LIMIT - getDailyApplicationsCount(), 0);
+}
+
+function renderDailyLimitDashboard() {
+  const used = getDailyApplicationsCount();
+  const remaining = Math.max(DAILY_APPLICATION_LIMIT - used, 0);
+  const percentage = Math.min(Math.round((used / DAILY_APPLICATION_LIMIT) * 100), 100);
+
+  if (dailyLimitValue) dailyLimitValue.textContent = `${used} / ${DAILY_APPLICATION_LIMIT}`;
+  if (dailyLimitRemaining) {
+    dailyLimitRemaining.textContent = remaining
+      ? `${pluralize(remaining, "application")} remaining today`
+      : "Daily limit reached. Resume tomorrow.";
+  }
+  if (dailyLimitFill) dailyLimitFill.style.width = `${percentage}%`;
+}
+
+function getReadinessItems() {
+  const { titles, locations } = getPendingSearchValues();
+  return [
+    { label: "SEEK login verified", ready: loginValidated },
+    { label: pluralize(titles.length, "job title"), ready: titles.length > 0 },
+    { label: pluralize(locations.length, "location"), ready: locations.length > 0 },
+    { label: "Resume uploaded", ready: Boolean(resumePath) },
+    { label: "AI configured", ready: isAIConfigured() },
+    { label: `${getDailyRemaining()} daily applications remaining`, ready: getDailyRemaining() > 0 }
+  ];
+}
+
+function renderReadinessChecklist() {
+  if (!readinessList) return;
+  readinessList.innerHTML = "";
+  for (const item of getReadinessItems()) {
+    const li = document.createElement("li");
+    li.className = item.ready ? "ready" : "blocked";
+    li.textContent = item.label;
+    readinessList.appendChild(li);
+  }
+}
 
 const PROVIDER_MODELS = {
   openrouter: [
@@ -441,6 +521,110 @@ function updateLogsEmptyState() {
   logsEmpty.style.display = logs.textContent.trim() ? "none" : "";
 }
 
+function resetRunSummary() {
+  runSummary = createEmptyRunSummary();
+  runSummary.active = true;
+  renderRunSummary();
+}
+
+function parseLogDetails(message) {
+  const match = String(message || "").match(/(\{.*\})\s*$/s);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+function updateRunSummaryFromLog(message) {
+  const text = String(message || "");
+  const details = parseLogDetails(text);
+  let changed = false;
+
+  if (/Opening SEEK search/.test(text)) {
+    runSummary.searches += 1;
+    changed = true;
+  }
+  if (/Search complete/.test(text) && Number.isFinite(Number(details?.jobCount))) {
+    runSummary.searchedJobs += Number(details.jobCount);
+    changed = true;
+  }
+  if (/Skipping already handled job/.test(text)) {
+    runSummary.skippedDuplicates += 1;
+    runSummary.reasons.add("Skipped duplicates already saved in local history.");
+    changed = true;
+  }
+  if (/already applied/i.test(text) && !/Skipping already handled job/.test(text)) {
+    runSummary.alreadyApplied += 1;
+    runSummary.reasons.add("Some jobs were already marked applied by SEEK.");
+    changed = true;
+  }
+  if (/Application prepared and left open/.test(text)) {
+    runSummary.prepared += 1;
+    changed = true;
+  }
+  if (/Job failed; continuing|^\[.*\]\s+\[ERROR\]/.test(text)) {
+    runSummary.failed += 1;
+    runSummary.reasons.add("Failures are selector, page load, or browser errors; see logs for details.");
+    changed = true;
+  }
+  if (/Still on sign-in page|SEEK sign-in still required|human verification/i.test(text)) {
+    runSummary.blocked += 1;
+    runSummary.reasons.add("A job needed manual sign-in or human verification before continuing.");
+    changed = true;
+  }
+  if (/Apply run complete/.test(text)) {
+    if (Number.isFinite(Number(details?.totalApplicationsPrepared))) {
+      runSummary.prepared = Math.max(runSummary.prepared, Number(details.totalApplicationsPrepared));
+    }
+    runSummary.active = false;
+    changed = true;
+  }
+  if (/Automation stopped by user|Process exited/.test(text)) {
+    runSummary.active = false;
+    changed = true;
+  }
+
+  if (changed) renderRunSummary();
+}
+
+function renderRunSummary() {
+  if (!runSummaryContent) return;
+  const hasData = runSummary.active ||
+    runSummary.searches ||
+    runSummary.searchedJobs ||
+    runSummary.skippedDuplicates ||
+    runSummary.alreadyApplied ||
+    runSummary.prepared ||
+    runSummary.failed ||
+    runSummary.blocked;
+
+  if (!hasData) {
+    runSummaryContent.innerHTML = '<p class="hint">No run summary yet.</p>';
+    return;
+  }
+
+  const stats = [
+    ["Searched jobs", runSummary.searchedJobs],
+    ["Skipped duplicates", runSummary.skippedDuplicates],
+    ["Already applied", runSummary.alreadyApplied],
+    ["Prepared", runSummary.prepared],
+    ["Failed", runSummary.failed]
+  ];
+  const reasons = Array.from(runSummary.reasons);
+  if (!reasons.length) reasons.push("No skip or failure reasons recorded yet.");
+
+  runSummaryContent.innerHTML = [
+    '<div class="run-summary-grid">',
+    ...stats.map(([label, value]) => (
+      `<div class="run-summary-stat"><strong>${value}</strong><span>${label}</span></div>`
+    )),
+    '</div>',
+    `<p class="run-summary-reasons">${reasons.join(" ")}</p>`
+  ].join("");
+}
+
 function countWords(value) {
   return (String(value || "").match(/[\p{L}\p{N}]+(?:['\u2019][\p{L}\p{N}]+)?/gu) || []).length;
 }
@@ -501,6 +685,7 @@ function getConfig() {
 
 function appendLog(message) {
   logs.textContent = logs.textContent ? `${logs.textContent}\n${message}` : message;
+  updateRunSummaryFromLog(message);
   updateLogsEmptyState();
   logs.scrollTop = logs.scrollHeight;
 }
@@ -542,6 +727,7 @@ async function loadConfig() {
   if (contactPhoneInput) contactPhoneInput.value = config.contactPhone || "";
   if (contactWebsiteInput) contactWebsiteInput.value = config.contactWebsite || "";
   updateResumeGenerationState();
+  updateStartButtonState();
 }
 
 async function loadAIConfig() {
@@ -590,14 +776,20 @@ function updateAIConfiguredState() {
 function updateStartButtonState() {
   const { titles, locations } = getPendingSearchValues();
   const missing = [];
+  const remaining = getDailyRemaining();
+  if (!loginValidated) missing.push("Sign in to <b>SEEK</b>");
   if (!titles.length) missing.push("Add at least one <b>job title</b>");
   if (!locations.length) missing.push("Add at least one <b>location</b>");
+  if (!resumePath) missing.push("Upload a <b>resume</b>");
   if (!isAIConfigured()) missing.push('<button class="hint-link">Open Settings</button> and configure <b>AI credentials</b>');
+  if (remaining <= 0) missing.push("Daily allowance is used for today");
 
-  const ready = missing.length === 0;
+  const ready = missing.length === 0 && !automationRunning;
   startBtn.disabled = !ready;
   aiNotReadyHint.style.display = ready ? "none" : "";
   aiNotReadyHint.innerHTML = missing.join(". ") + ".";
+  renderDailyLimitDashboard();
+  renderReadinessChecklist();
   updateRunPreview();
 }
 
@@ -616,18 +808,24 @@ function updateRunPreview() {
   const { titles, locations } = getPendingSearchValues();
   const searchCount = titles.length * locations.length;
   const maxApplications = clampApplicationLimit(maxApplicationsInput.value);
+  const dailyRemaining = getDailyRemaining();
+  const effectiveMaxApplications = Math.min(maxApplications, dailyRemaining);
   const hasResume = Boolean(resumePath);
   const hasCoverLetterText = Boolean((coverLetterTextInput?.value || "").trim());
 
   previewSearches.textContent = searchCount
     ? `${pluralize(searchCount, "search")} (${titles.length} x ${locations.length})`
     : "0 searches";
-  previewMaxApplications.textContent = `Up to ${maxApplications}`;
+  previewMaxApplications.textContent = dailyRemaining
+    ? `Up to ${effectiveMaxApplications} (${dailyRemaining} left today)`
+    : "Daily limit reached";
   previewReviewMode.textContent = reviewBeforeApplyInput.checked ? "On" : "Off";
   previewAIStatus.textContent = isAIConfigured() ? "Configured" : "Needs setup";
   previewResumeStatus.textContent = hasResume ? "Uploaded" : "Not uploaded";
   previewCoverLetterStatus.textContent = hasCoverLetterText ? "Reference ready" : "Fallback template";
-  startBtn.textContent = `Start applying to up to ${maxApplications} ${maxApplications === 1 ? "job" : "jobs"}`;
+  startBtn.textContent = dailyRemaining
+    ? `Start applying to up to ${effectiveMaxApplications} ${effectiveMaxApplications === 1 ? "job" : "jobs"}`
+    : "Daily limit reached";
 }
 
 function getResumeGenerationMessage(kind) {
@@ -740,17 +938,84 @@ async function saveAISettings() {
 
 async function loadAppliedJobs() {
   const jobs = await window.seekApp.loadAppliedJobs();
-  renderAppliedJobs(jobs);
+  appliedJobsCache = Array.isArray(jobs) ? jobs : [];
+  coverLetterPreviewCache = new Map();
+  renderHistoryDateOptions(appliedJobsCache);
+  renderAppliedJobs(getFilteredAppliedJobs());
+  renderReviewQueue();
+  updateStartButtonState();
 }
 
-function renderAppliedJobs(jobs) {
+function renderHistoryDateOptions(jobs) {
+  if (!historyDateFilter) return;
+  const currentValue = historyDateFilter.value || "all";
+  const dateKeys = Array.from(new Set(
+    jobs.map((job) => getLocalDateKey(job.handledAt) || "unknown")
+  )).sort((a, b) => {
+    if (a === "unknown") return 1;
+    if (b === "unknown") return -1;
+    return b.localeCompare(a);
+  });
+
+  historyDateFilter.innerHTML = '<option value="all">All dates</option>';
+  for (const dateKey of dateKeys) {
+    const option = document.createElement("option");
+    option.value = dateKey;
+    option.textContent = formatAppliedDateHeading(dateKey);
+    historyDateFilter.appendChild(option);
+  }
+
+  historyDateFilter.value = dateKeys.includes(currentValue) ? currentValue : "all";
+}
+
+function getFilteredAppliedJobs() {
+  const search = (historySearchInput?.value || "").trim().toLowerCase();
+  const statusFilter = historyStatusFilter?.value || "all";
+  const dateFilter = historyDateFilter?.value || "all";
+
+  return appliedJobsCache.filter((job) => {
+    const status = job.status || "prepared";
+    const dateKey = getLocalDateKey(job.handledAt) || "unknown";
+    if (statusFilter !== "all" && status !== statusFilter) return false;
+    if (dateFilter !== "all" && dateKey !== dateFilter) return false;
+    if (!search) return true;
+
+    const haystack = [
+      job.title,
+      job.company,
+      job.url,
+      status,
+      dateKey
+    ].filter(Boolean).join(" ").toLowerCase();
+    return haystack.includes(search);
+  });
+}
+
+function renderHistoryTotals(visibleJobs) {
+  if (!historyTotals) return;
+  const total = appliedJobsCache.length;
+  const today = getDailyApplicationsCount();
+  if (!total) {
+    historyTotals.textContent = "";
+    return;
+  }
+  historyTotals.textContent = `${visibleJobs.length} of ${total} shown · ${today}/${DAILY_APPLICATION_LIMIT} counted today`;
+}
+
+function renderAppliedJobs(jobs = getFilteredAppliedJobs()) {
   appliedList.innerHTML = "";
-  hasAppliedJobs = Boolean(jobs && jobs.length);
+  hasAppliedJobs = Boolean(appliedJobsCache.length);
   clearAppliedBtn.disabled = !hasAppliedJobs;
   exportJobsBtn.disabled = !hasAppliedJobs;
+  renderHistoryTotals(jobs);
 
   if (!hasAppliedJobs) {
     appliedList.innerHTML = '<p class="hint">No jobs applied yet.</p>';
+    return;
+  }
+
+  if (!jobs.length) {
+    appliedList.innerHTML = '<p class="hint">No jobs match the current filters.</p>';
     return;
   }
 
@@ -837,6 +1102,294 @@ function createAppliedJobItem(job) {
   item.appendChild(info);
   item.appendChild(right);
   return item;
+}
+
+function renderReviewQueue() {
+  if (!reviewQueueList || !reviewQueueCount) return;
+  const queueItems = reviewQueueItems
+    .filter((item) => item.status !== "skipped")
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+  reviewQueueCount.className = "settings-state " + (queueItems.length ? "warn" : "ok");
+  reviewQueueCount.textContent = queueItems.length ? `${queueItems.length} ready` : "0 ready";
+  reviewQueueList.innerHTML = "";
+
+  if (!queueItems.length) {
+    reviewQueueList.innerHTML = '<p class="hint">No queued jobs yet. Start a run to find jobs for review.</p>';
+    return;
+  }
+
+  for (const item of queueItems) {
+    reviewQueueList.appendChild(createReviewQueueItem(item));
+  }
+}
+
+function createReviewQueueItem(item) {
+  const article = document.createElement("article");
+  article.className = "review-item";
+
+  const header = document.createElement("div");
+  header.className = "review-item-header";
+
+  const heading = document.createElement("div");
+  const title = document.createElement("h3");
+  title.className = "review-title";
+  title.textContent = item.title || "Untitled role";
+  const meta = document.createElement("div");
+  meta.className = "review-meta";
+  meta.textContent = [item.company, item.location, queueStatusLabel(item.status)].filter(Boolean).join(" · ");
+  heading.appendChild(title);
+  heading.appendChild(meta);
+
+  const score = document.createElement("span");
+  score.className = "queue-score";
+  score.textContent = `Match ${Number(item.matchScore) || 0}/100`;
+
+  header.appendChild(heading);
+  header.appendChild(score);
+  article.appendChild(header);
+
+  const grid = document.createElement("div");
+  grid.className = "review-grid";
+  grid.appendChild(createQueueReviewSection("Red flags", createQueueRedFlagContent(item)));
+  grid.appendChild(createQueueReviewSection("Match notes", item.match?.overallAssessment || "No AI match notes were returned."));
+  grid.appendChild(createQueueReviewSection("Generated cover letter", item.coverLetterText || "Cover letter preview is not available.", true));
+  article.appendChild(grid);
+
+  const actions = document.createElement("div");
+  actions.className = "review-actions";
+
+  const apply = createActionButton(
+    item.status === "prepared" ? "Prepared" : item.status === "applying" ? "Preparing..." : "Apply",
+    () => applyQueuedJob(item.id),
+    "primary"
+  );
+  apply.disabled = automationRunning || ["prepared", "applying", "already_applied", "already_handled"].includes(item.status);
+
+  const skip = createActionButton("Skip", () => skipQueuedJob(item.id), "danger");
+  skip.disabled = automationRunning || ["prepared", "applying"].includes(item.status);
+
+  actions.appendChild(apply);
+  actions.appendChild(skip);
+  if (item.url) actions.appendChild(createActionButton("Open Job", () => openAppliedJobUrl(item.url)));
+  if (item.coverLetterPath) actions.appendChild(createActionButton("Download cover letter", () => downloadAppliedCoverLetter(item.coverLetterPath)));
+
+  article.appendChild(actions);
+  return article;
+}
+
+function createQueueReviewSection(title, content, wide = false) {
+  const section = document.createElement("section");
+  section.className = "review-section" + (wide ? " wide" : "");
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  section.appendChild(heading);
+
+  if (Array.isArray(content)) {
+    const list = document.createElement("ul");
+    list.className = "evidence-list";
+    content.forEach((item) => {
+      const li = document.createElement("li");
+      li.textContent = item;
+      list.appendChild(li);
+    });
+    section.appendChild(list);
+  } else if (wide) {
+    const pre = document.createElement("pre");
+    pre.className = "cover-letter-preview";
+    pre.textContent = content;
+    section.appendChild(pre);
+  } else {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = content;
+    section.appendChild(paragraph);
+  }
+
+  return section;
+}
+
+function createQueueRedFlagContent(item) {
+  const flags = Array.isArray(item.redFlags?.redFlags) ? item.redFlags.redFlags.filter(Boolean) : [];
+  if (flags.length) return flags;
+  const risk = item.redFlags?.riskLevel || "low";
+  const reason = item.redFlags?.reason || "No red flags detected.";
+  return `${risk.toUpperCase()} risk. ${reason}`;
+}
+
+function queueStatusLabel(status = "ready") {
+  return String(status).replace(/_/g, " ");
+}
+
+function createPreparedReviewItem(job) {
+  const item = document.createElement("article");
+  item.className = "review-item";
+
+  const header = document.createElement("div");
+  header.className = "review-item-header";
+
+  const titleBlock = document.createElement("div");
+  const title = document.createElement("h3");
+  title.className = "review-title";
+  title.textContent = job.title || "Untitled job";
+  const meta = document.createElement("div");
+  meta.className = "review-meta";
+  meta.textContent = [
+    job.company,
+    job.handledAt ? `${formatAppliedDateHeading(getLocalDateKey(job.handledAt))} ${formatAppliedTime(job.handledAt)}` : ""
+  ].filter(Boolean).join(" · ");
+  titleBlock.appendChild(title);
+  titleBlock.appendChild(meta);
+
+  const status = document.createElement("span");
+  status.className = "job-status prepared";
+  status.textContent = "Ready for review";
+
+  header.appendChild(titleBlock);
+  header.appendChild(status);
+  item.appendChild(header);
+
+  const grid = document.createElement("div");
+  grid.className = "review-grid";
+  grid.appendChild(createReviewTextSection("Job summary", job.jobSummary || "Summary was not captured for this record. Open the job to review the current listing."));
+  grid.appendChild(createReviewTextSection("AI fit score", formatFitScore(job.fitScore)));
+  grid.appendChild(createReviewTextSection("Red flags", formatRedFlags(job.redFlags)));
+  grid.appendChild(createReviewTextSection("Screening answers", formatScreeningAnswers(job.screeningAnswers)));
+
+  const coverLetterSection = createReviewTextSection("Cover letter draft", job.coverLetterPath ? "Loading draft..." : "No cover letter draft was generated for this job.");
+  coverLetterSection.classList.add("wide");
+  const coverLetterBody = coverLetterSection.querySelector("p");
+  coverLetterBody.className = "cover-letter-preview";
+  grid.appendChild(coverLetterSection);
+  if (job.coverLetterPath) loadCoverLetterPreview(job.coverLetterPath, coverLetterBody);
+
+  const evidenceSection = document.createElement("section");
+  evidenceSection.className = "review-section wide";
+  const evidenceHeading = document.createElement("h3");
+  evidenceHeading.textContent = "Based on resume points used";
+  evidenceSection.appendChild(evidenceHeading);
+  const evidencePoints = getEvidencePoints(job);
+  if (evidencePoints.length) {
+    const list = document.createElement("ul");
+    list.className = "evidence-list";
+    evidencePoints.forEach((point) => {
+      const li = document.createElement("li");
+      li.textContent = point;
+      list.appendChild(li);
+    });
+    evidenceSection.appendChild(list);
+  } else {
+    const empty = document.createElement("p");
+    empty.textContent = "No resume evidence was stored for this older record.";
+    evidenceSection.appendChild(empty);
+  }
+  grid.appendChild(evidenceSection);
+  item.appendChild(grid);
+
+  const actions = document.createElement("div");
+  actions.className = "review-actions";
+  if (job.url) actions.appendChild(createActionButton("Open job", () => openAppliedJobUrl(job.url)));
+  if (job.coverLetterPath) {
+    actions.appendChild(createActionButton("Edit draft", () => openAppliedCoverLetter(job.coverLetterPath)));
+    actions.appendChild(createActionButton("Download draft", () => downloadAppliedCoverLetter(job.coverLetterPath)));
+  }
+  actions.appendChild(createActionButton("Mark submitted", () => updateAppliedJobReviewStatus(job, "submitted"), "continue"));
+  actions.appendChild(createActionButton("Skip", () => updateAppliedJobReviewStatus(job, "skipped"), "danger"));
+  item.appendChild(actions);
+
+  return item;
+}
+
+function createReviewTextSection(title, text) {
+  const section = document.createElement("section");
+  section.className = "review-section";
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  const body = document.createElement("p");
+  body.textContent = text;
+  section.appendChild(heading);
+  section.appendChild(body);
+  return section;
+}
+
+function createActionButton(label, onClick, variant = "") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = ["btn-sm", variant].filter(Boolean).join(" ");
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function formatFitScore(score) {
+  const number = Number(score);
+  if (!Number.isFinite(number)) return "Not scored for this job.";
+  return `${Math.round(number)} / 100`;
+}
+
+function formatRedFlags(redFlags) {
+  if (!Array.isArray(redFlags) || !redFlags.length) return "None recorded.";
+  return redFlags.join(" ");
+}
+
+function formatScreeningAnswers(screeningAnswers) {
+  if (!Array.isArray(screeningAnswers) || !screeningAnswers.length) {
+    return "No screening answers drafted yet.";
+  }
+  return screeningAnswers.map((answer) => {
+    if (typeof answer === "string") return answer;
+    return [answer.question, answer.answer].filter(Boolean).join(": ");
+  }).filter(Boolean).join(" ");
+}
+
+function getEvidencePoints(job) {
+  const points = job?.aiEvidence?.resumePoints || job?.evidencePoints || [];
+  return Array.isArray(points) ? points.filter(Boolean) : [];
+}
+
+async function loadCoverLetterPreview(coverLetterPath, target) {
+  if (!target) return;
+  if (coverLetterPreviewCache.has(coverLetterPath)) {
+    target.textContent = coverLetterPreviewCache.get(coverLetterPath);
+    return;
+  }
+
+  const result = await window.seekApp.readCoverLetter(coverLetterPath);
+  const text = result.success
+    ? truncateText(result.content || "", 1600)
+    : (result.message || "Cover letter draft is not available.");
+  coverLetterPreviewCache.set(coverLetterPath, text);
+  target.textContent = text;
+}
+
+function truncateText(value, limit) {
+  const text = String(value || "").trim();
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit).trim()}...`;
+}
+
+async function openAppliedCoverLetter(coverLetterPath) {
+  const result = await window.seekApp.openCoverLetter(coverLetterPath);
+  if (!result.success) {
+    appendLog(`[WARN] ${result.message || "Could not open cover letter draft."}`);
+  }
+}
+
+async function updateAppliedJobReviewStatus(job, status) {
+  const action = status === "submitted" ? "mark this job as submitted" : "skip this prepared application";
+  const confirmed = window.confirm(`Do you want to ${action}?\n\nOnly mark submitted after reviewing and submitting in the visible SEEK browser.`);
+  if (!confirmed) return;
+
+  const result = await window.seekApp.updateAppliedJobStatus({
+    url: job.url,
+    handledAt: job.handledAt,
+    status
+  });
+  if (result.success) {
+    appendLog(`[OK] ${job.title || "Job"} marked ${status}.`);
+    await loadAppliedJobs();
+  } else {
+    appendLog(`[WARN] ${result.message || "Could not update job status."}`);
+  }
 }
 
 function groupJobsByDate(jobs) {
@@ -930,6 +1483,7 @@ document.getElementById("selectResume").addEventListener("click", async () => {
     resumePath = file;
     resumePathText.textContent = `Resume uploaded: ${file}`;
     updateResumeGenerationState();
+    updateStartButtonState();
   }
 });
 
@@ -1046,12 +1600,20 @@ coverLetterWordLimitInput.addEventListener("blur", () => {
   updateTextAreaWordCounts();
 });
 coverLetterWordLimitInput.addEventListener("input", updateTextAreaWordCounts);
-maxApplicationsInput.addEventListener("input", updateRunPreview);
+maxApplicationsInput.addEventListener("input", updateStartButtonState);
 maxApplicationsInput.addEventListener("blur", () => {
   maxApplicationsInput.value = clampApplicationLimit(maxApplicationsInput.value);
-  updateRunPreview();
+  updateStartButtonState();
 });
 reviewBeforeApplyInput.addEventListener("change", updateRunPreview);
+
+function applyHistoryFilters() {
+  renderAppliedJobs(getFilteredAppliedJobs());
+}
+
+historySearchInput.addEventListener("input", applyHistoryFilters);
+historyStatusFilter.addEventListener("change", applyHistoryFilters);
+historyDateFilter.addEventListener("change", applyHistoryFilters);
 
 settingsToggle.addEventListener("click", toggleSettings);
 settingsBack.addEventListener("click", closeSettings);
@@ -1107,7 +1669,8 @@ document.getElementById("start").addEventListener("click", async () => {
   logs.textContent = "";
   updateLogsEmptyState();
   resetRunDashboard();
-  appendLog("Starting automation...");
+  resetRunSummary();
+  appendLog("Finding jobs for the review queue...");
   const result = await window.seekApp.startAutomation();
   if (!result.success) appendLog(result.message);
 });

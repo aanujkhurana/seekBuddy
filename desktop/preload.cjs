@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("seekApp", {
 
   startAutomation: () => ipcRenderer.invoke("start-automation"),
   stopAutomation: () => ipcRenderer.invoke("stop-automation"),
+  applyQueuedJob: (queueId) => ipcRenderer.invoke("apply-queued-job", queueId),
 
   startLogin: () => ipcRenderer.invoke("start-login"),
   continueLogin: () => ipcRenderer.invoke("continue-login"),
@@ -17,11 +18,16 @@ contextBridge.exposeInMainWorld("seekApp", {
   sendStdin: (data) => ipcRenderer.invoke("send-stdin", data),
 
   loadAppliedJobs: () => ipcRenderer.invoke("load-applied-jobs"),
+  loadReviewQueue: () => ipcRenderer.invoke("load-review-queue"),
+  skipQueuedJob: (queueId) => ipcRenderer.invoke("skip-queued-job", queueId),
   clearApplied: () => ipcRenderer.invoke("clear-applied"),
   exportJobs: () => ipcRenderer.invoke("export-jobs"),
   openJobUrl: (url) => ipcRenderer.invoke("open-job-url", url),
   openExternalLink: (url) => ipcRenderer.invoke("open-external-link", url),
   downloadCoverLetter: (path) => ipcRenderer.invoke("download-cover-letter", path),
+  readCoverLetter: (path) => ipcRenderer.invoke("read-cover-letter", path),
+  openCoverLetter: (path) => ipcRenderer.invoke("open-cover-letter", path),
+  updateAppliedJobStatus: (payload) => ipcRenderer.invoke("update-applied-job-status", payload),
 
   checkBrowsers: () => ipcRenderer.invoke("check-browsers"),
   installBrowsers: () => ipcRenderer.invoke("install-browsers"),
@@ -42,6 +48,7 @@ contextBridge.exposeInMainWorld("seekApp", {
   onAppliedJobsUpdated: (cb) => { ipcRenderer.on("applied-jobs-updated", () => cb()); },
   onStatusChange: (cb) => { ipcRenderer.on("automation-status", (_e, d) => cb(d)); },
   onAutomationProgress: (cb) => { ipcRenderer.on("automation-progress", (_e, d) => cb(d)); },
+  onReviewQueueUpdated: (cb) => { ipcRenderer.on("review-queue-updated", () => cb()); },
   getAutomationStatus: () => ipcRenderer.invoke("get-automation-status"),
   getUsageStats: () => ipcRenderer.invoke("get-usage-stats"),
   getBillingPlans: () => ipcRenderer.invoke("get-billing-plans"),

@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { chromium } from "playwright";
@@ -10,7 +11,9 @@ import {
   writeJsonFile
 } from "./config.js";
 import { loadConfig } from "./automation/config.js";
+import { SEEK_SELECTORS, SEEK_TEXT } from "./automation/seek-selectors.js";
 import { createCoverLetter, saveCoverLetter } from "./cover-letter.js";
+import { detectRedFlags, scoreJobMatch } from "./ai/ai-service.js";
 import { logError, logStep, logSuccess, logWarn } from "./logger.js";
 
 let shouldStop = false;
@@ -30,10 +33,15 @@ process.on("SIGINT", () => {
 
 const config = loadConfig();
 const dryRun = hasFlag("--dry-run");
+const queueOnly = hasFlag("--queue-only");
+const queuedApplyId = getArgValue("--apply-queued");
 const dataDir = process.env.USER_DATA_DIR || "data";
 const handledPath = path.join(dataDir, "handled-applications.json");
+const queuePath = path.join(dataDir, "application-review-queue.json");
 const handledApplications = readJsonFile(handledPath, []);
 const handledUrls = new Set(handledApplications.map((item) => item.url));
+const reviewQueue = readJsonFile(queuePath, []);
+const queuedUrls = new Set(reviewQueue.filter((item) => item.status !== "skipped").map((item) => item.url));
 let dailyApplicationsToday = countApplicationsForDate(handledApplications, getLocalDateKey());
 const requestedRunLimit = normalizeApplicationLimit(config.maxApplications);
 const availableToday = Math.max(DAILY_APPLICATION_LIMIT - dailyApplicationsToday, 0);
@@ -75,7 +83,18 @@ try {
   let totalApplicationsPrepared = 0;
   let blocked = false;
 
-  for (const searchUrl of searchUrls) {
+  if (queuedApplyId) {
+    await applyQueuedJob({
+      context,
+      config,
+      queuePath,
+      queueId: queuedApplyId,
+      handledPath,
+      handledApplications,
+      handledUrls
+    });
+  } else {
+    for (const searchUrl of searchUrls) {
     if (shouldStop) break;
     const remainingRunLimit = runApplicationLimit - totalApplicationsPrepared;
     if (remainingRunLimit <= 0) {
@@ -117,15 +136,17 @@ try {
         break;
       }
 
-      if (handledUrls.has(url)) {
-        logStep("Skipping already handled job", { url });
+      if (handledUrls.has(url) || (queueOnly && queuedUrls.has(url))) {
+        logStep(queueOnly ? "Skipping already queued or handled job" : "Skipping already handled job", { url });
         continue;
       }
 
       searchAttempted += 1;
       let result;
       try {
-        result = await handleJob({ context, config, dryRun, searchUrl, url });
+        result = queueOnly
+          ? await queueJobForReview({ context, config, searchUrl, url, queuePath, reviewQueue, queuedUrls })
+          : await handleJob({ context, config, dryRun, searchUrl, url });
       } catch (error) {
         logError("Job failed; continuing to next job", error);
         continue;
@@ -138,13 +159,32 @@ try {
 
       if (!result.handled) continue;
 
+      if (result.queued) {
+        searchHandled += 1;
+        totalHandled += 1;
+        totalApplicationsPrepared += 1;
+        logSuccess("Job added to review queue", {
+          url,
+          searchHandled,
+          totalQueued: totalHandled
+        });
+        continue;
+      }
+
       handledApplications.push({
         url,
         searchUrl,
         title: result.job.title,
         company: result.job.company,
+        location: result.job.location || "",
         coverLetterPath: result.coverLetterPath,
         status: result.status || "prepared",
+        jobSummary: summarizeJobForReview(result.job),
+        fitScore: result.fitScore ?? null,
+        redFlags: result.redFlags || [],
+        screeningAnswers: result.screeningAnswers || [],
+        evidencePoints: getResumeEvidencePoints(config),
+        aiEvidence: createAIEvidence(config),
         handledAt: new Date().toISOString(),
         dryRun
       });
@@ -172,19 +212,20 @@ try {
       handledCount: searchHandled
     });
     if (blocked || shouldStop) break;
-  }
+    }
 
-  if (shouldStop) {
-    logWarn("Automation stopped by user.", { totalHandled });
-  }
+    if (shouldStop) {
+      logWarn("Automation stopped by user.", { totalHandled });
+    }
 
-  logSuccess("Apply run complete", {
-    totalHandled,
-    totalApplicationsPrepared,
-    dailyLimit: DAILY_APPLICATION_LIMIT
-  });
-  if (!dryRun && (config.reviewBeforeApply ?? config.pauseBeforeSubmit ?? true) && totalHandled > 0) {
-    await waitForBatchReview(context, totalHandled);
+    logSuccess("Apply run complete", {
+      totalHandled,
+      totalApplicationsPrepared,
+      dailyLimit: DAILY_APPLICATION_LIMIT
+    });
+    if (!queueOnly && !dryRun && (config.reviewBeforeApply ?? config.pauseBeforeSubmit ?? true) && totalHandled > 0) {
+      await waitForBatchReview(context, totalHandled);
+    }
   }
 } finally {
   logStep("Closing browser context");
@@ -196,6 +237,69 @@ function normalizeApplicationLimit(value) {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) return 10;
   return Math.min(Math.floor(number), DAILY_APPLICATION_LIMIT);
+}
+
+function getResumeEvidencePoints(config) {
+  const points = Array.isArray(config.resumeSummary)
+    ? config.resumeSummary
+    : String(config.resumeSummary || "").split("\n");
+  return points.map((point) => point.trim()).filter(Boolean).slice(0, 8);
+}
+
+function createAIEvidence(config) {
+  return {
+    resumePoints: getResumeEvidencePoints(config),
+    note: "AI-generated drafts should stay within these resume-backed points."
+  };
+}
+
+function summarizeJobForReview(job) {
+  const description = String(job?.description || "").replace(/\s+/g, " ").trim();
+  if (!description) return "";
+  return description.length > 360 ? `${description.slice(0, 360).trim()}...` : description;
+}
+
+async function getJobReviewSignals({ config, job, url }) {
+  const signals = {
+    fitScore: null,
+    redFlags: []
+  };
+
+  try {
+    logStep("Scoring job match", { url });
+    const match = await scoreJobMatch({ config, job });
+    signals.fitScore = normalizeScore(match?.score);
+    logSuccess("Job match scored", { score: signals.fitScore });
+  } catch (error) {
+    logWarn("Could not score job match; continuing without fit score", {
+      url,
+      message: error.message
+    });
+  }
+
+  try {
+    logStep("Checking job red flags", { url });
+    const redFlags = await detectRedFlags({ config, job });
+    signals.redFlags = Array.isArray(redFlags?.redFlags)
+      ? redFlags.redFlags.filter(Boolean)
+      : [];
+    logSuccess("Red flag check complete", {
+      redFlagCount: signals.redFlags.length
+    });
+  } catch (error) {
+    logWarn("Could not check red flags; continuing without red flag notes", {
+      url,
+      message: error.message
+    });
+  }
+
+  return signals;
+}
+
+function getArgValue(flag) {
+  const index = process.argv.indexOf(flag);
+  if (index === -1) return "";
+  return process.argv[index + 1] || "";
 }
 
 function countsTowardDailyLimit({ result, dryRun }) {
@@ -239,6 +343,7 @@ async function handleJob({ context, config, dryRun, searchUrl, url }) {
     company: job.company || "Unknown company",
     descriptionCharacters: job.description?.length || 0
   });
+  const reviewSignals = await getJobReviewSignals({ config, job, url });
 
   let coverLetterPath = null;
   try {
@@ -253,7 +358,7 @@ async function handleJob({ context, config, dryRun, searchUrl, url }) {
         path: coverLetterPath
       });
       logSuccess("Dry run complete for job", { url });
-      return { handled: true, job, coverLetterPath };
+      return { handled: true, job, coverLetterPath, ...reviewSignals };
     }
 
     if (await isAlreadyAppliedPage(jobPage)) {
@@ -261,7 +366,7 @@ async function handleJob({ context, config, dryRun, searchUrl, url }) {
         url
       });
       await jobPage.close().catch(() => {});
-      return { handled: true, job, coverLetterPath: null, status: "already_applied" };
+      return { handled: true, job, coverLetterPath: null, status: "already_applied", ...reviewSignals };
     }
 
     logStep("Opening apply flow", { url });
@@ -272,7 +377,7 @@ async function handleJob({ context, config, dryRun, searchUrl, url }) {
           url
         });
         await jobPage.close().catch(() => {});
-        return { handled: true, job, coverLetterPath: null, status: "already_applied" };
+        return { handled: true, job, coverLetterPath: null, status: "already_applied", ...reviewSignals };
       }
 
       logWarn("Could not find apply button/link; leaving job page open", { url });
@@ -295,7 +400,7 @@ async function handleJob({ context, config, dryRun, searchUrl, url }) {
       });
       await applyPage.close().catch(() => {});
       await jobPage.close().catch(() => {});
-      return { handled: true, job, coverLetterPath: null, status: "already_applied" };
+      return { handled: true, job, coverLetterPath: null, status: "already_applied", ...reviewSignals };
     }
 
     logStep("Filling application", {
@@ -328,7 +433,7 @@ async function handleJob({ context, config, dryRun, searchUrl, url }) {
       url: applyPage.url()
     });
 
-    return { handled: true, job, coverLetterPath };
+    return { handled: true, job, coverLetterPath, ...reviewSignals };
   } finally {
     if (dryRun) {
       await jobPage.close().catch(() => {});
@@ -337,12 +442,220 @@ async function handleJob({ context, config, dryRun, searchUrl, url }) {
   }
 }
 
+async function queueJobForReview({ context, config, searchUrl, url, queuePath, reviewQueue, queuedUrls }) {
+  const jobPage = await context.newPage();
+  try {
+    logStep("Opening job page for review queue", { searchUrl, url });
+    await jobPage.goto(url, { waitUntil: "domcontentloaded" });
+    await jobPage.waitForLoadState("networkidle").catch(() => {});
+    await waitForHumanVerification(jobPage);
+
+    logStep("Extracting job details", { url });
+    const job = await extractJob(jobPage);
+    job.url = url;
+    logSuccess("Job details extracted", {
+      title: job.title || "Unknown title",
+      company: job.company || "Unknown company",
+      location: job.location || "Unknown location"
+    });
+
+    logStep("Scoring job match", { url });
+    const match = await scoreJobMatch({ config, job });
+    logSuccess("Job match scored", {
+      score: normalizeScore(match.score)
+    });
+
+    logStep("Checking job red flags", { url });
+    const redFlags = await detectRedFlags({ config, job });
+    logSuccess("Red flag check complete", {
+      riskLevel: redFlags.riskLevel || "low",
+      redFlagCount: Array.isArray(redFlags.redFlags) ? redFlags.redFlags.length : 0
+    });
+
+    const coverLetter = await createCoverLetter({ config, job });
+    const coverLetterPath = saveCoverLetter({ job, coverLetter });
+    const item = {
+      id: createQueueId(job, url),
+      status: "ready",
+      url,
+      searchUrl,
+      title: job.title || "Untitled",
+      company: job.company || "",
+      location: job.location || "",
+      description: job.description || "",
+      jobSummary: summarizeJobForReview(job),
+      matchScore: normalizeScore(match.score),
+      match,
+      redFlags,
+      coverLetterPath,
+      coverLetterText: coverLetter,
+      evidencePoints: getResumeEvidencePoints(config),
+      aiEvidence: createAIEvidence(config),
+      screeningAnswers: [],
+      createdAt: new Date().toISOString()
+    };
+
+    reviewQueue.push(item);
+    queuedUrls.add(url);
+    writeJsonFile(queuePath, reviewQueue);
+    logSuccess("Job queued for review", {
+      title: item.title,
+      company: item.company,
+      score: item.matchScore
+    });
+    return { handled: true, queued: true, job, coverLetterPath };
+  } finally {
+    await jobPage.close().catch(() => {});
+  }
+}
+
+async function applyQueuedJob({ context, config, queuePath, queueId, handledPath, handledApplications, handledUrls }) {
+  const queue = readJsonFile(queuePath, []);
+  const item = queue.find((entry) => entry.id === queueId);
+  if (!item) {
+    logWarn("Queued job not found", { queueId });
+    return;
+  }
+  if (item.status === "skipped") {
+    logWarn("Queued job was skipped; not applying", { queueId });
+    return;
+  }
+  if (handledUrls.has(item.url)) {
+    logWarn("Queued job was already handled", { url: item.url });
+    updateQueuedItem(queuePath, queueId, { status: "already_handled", updatedAt: new Date().toISOString() });
+    return;
+  }
+
+  updateQueuedItem(queuePath, queueId, { status: "applying", updatedAt: new Date().toISOString() });
+
+  const job = {
+    title: item.title,
+    company: item.company,
+    location: item.location,
+    description: item.description || "",
+    url: item.url
+  };
+
+  const jobPage = await context.newPage();
+  let coverLetterPath = item.coverLetterPath || null;
+  try {
+    logStep("Opening queued job", { url: item.url });
+    await jobPage.goto(item.url, { waitUntil: "domcontentloaded" });
+    await jobPage.waitForLoadState("networkidle").catch(() => {});
+    await waitForHumanVerification(jobPage);
+
+    if (await isAlreadyAppliedPage(jobPage)) {
+      logWarn("Queued job already appears applied", { url: item.url });
+      handledApplications.push(createHandledApplication(item, "already_applied"));
+      writeJsonFile(handledPath, handledApplications);
+      updateQueuedItem(queuePath, queueId, { status: "already_applied", handledAt: new Date().toISOString() });
+      return;
+    }
+
+    logStep("Opening apply flow for queued job", { url: item.url });
+    const applyPage = await openApplyPage(jobPage, context);
+    if (!applyPage) {
+      logWarn("Could not find apply button/link for queued job", { url: item.url });
+      updateQueuedItem(queuePath, queueId, { status: "needs_review", updatedAt: new Date().toISOString() });
+      return;
+    }
+
+    const signedIn = await waitForSignInIfNeeded(applyPage);
+    if (!signedIn) {
+      logWarn("Still on sign-in page; queued job not marked handled", { url: item.url });
+      updateQueuedItem(queuePath, queueId, { status: "needs_login", updatedAt: new Date().toISOString() });
+      return;
+    }
+
+    await fillApplicationBasics(applyPage, config);
+
+    const coverLetterField = await findCoverLetterField(applyPage);
+    if (coverLetterField) {
+      const coverLetter = readQueuedCoverLetter(item) || await createCoverLetter({ config, job });
+      if (!coverLetterPath) coverLetterPath = saveCoverLetter({ job, coverLetter });
+      await coverLetterField.fill(coverLetter);
+      logSuccess("Queued cover letter filled", { path: coverLetterPath });
+    } else {
+      logWarn("No cover-letter field found for queued job");
+    }
+
+    handledApplications.push(createHandledApplication({ ...item, coverLetterPath }, "prepared"));
+    writeJsonFile(handledPath, handledApplications);
+    updateQueuedItem(queuePath, queueId, {
+      status: "prepared",
+      coverLetterPath,
+      handledAt: new Date().toISOString()
+    });
+    logSuccess("Queued application prepared and left open", { url: applyPage.url() });
+
+    if (config.reviewBeforeApply ?? config.pauseBeforeSubmit ?? true) {
+      await waitForBatchReview(context, 1);
+    }
+  } finally {
+    await jobPage.close().catch(() => {});
+  }
+}
+
+function updateQueuedItem(queuePath, queueId, updates) {
+  const queue = readJsonFile(queuePath, []);
+  const index = queue.findIndex((entry) => entry.id === queueId);
+  if (index === -1) return null;
+  queue[index] = { ...queue[index], ...updates };
+  writeJsonFile(queuePath, queue);
+  return queue[index];
+}
+
+function createHandledApplication(item, status) {
+  return {
+    url: item.url,
+    searchUrl: item.searchUrl || "",
+    title: item.title || "Untitled",
+    company: item.company || "",
+    location: item.location || "",
+    coverLetterPath: item.coverLetterPath || null,
+    status,
+    jobSummary: item.jobSummary || summarizeJobForReview(item),
+    fitScore: item.matchScore ?? null,
+    redFlags: item.redFlags?.redFlags || item.redFlags || [],
+    screeningAnswers: item.screeningAnswers || [],
+    evidencePoints: item.evidencePoints || item.aiEvidence?.resumePoints || [],
+    aiEvidence: item.aiEvidence || { resumePoints: item.evidencePoints || [] },
+    handledAt: new Date().toISOString(),
+    dryRun: false
+  };
+}
+
+function readQueuedCoverLetter(item) {
+  if (item.coverLetterText) return item.coverLetterText;
+  if (!item.coverLetterPath) return "";
+  const sourcePath = path.isAbsolute(item.coverLetterPath)
+    ? item.coverLetterPath
+    : path.resolve(process.cwd(), item.coverLetterPath);
+  if (!fs.existsSync(sourcePath)) return "";
+  return fs.readFileSync(sourcePath, "utf8");
+}
+
+function createQueueId(job, url) {
+  const raw = `${Date.now()}-${job.company || "company"}-${job.title || "role"}-${url}`;
+  return raw.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 96);
+}
+
+function normalizeScore(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.min(Math.max(Math.round(number), 0), 100);
+}
+
 async function collectJobUrls(page) {
   await page.waitForTimeout(1500);
-  const urls = await page.evaluate(() => {
-    return Array.from(document.querySelectorAll("a[href]"))
+  const urls = await page.evaluate(({ linkSelector, jobPathSource }) => {
+    const jobPath = new RegExp(jobPathSource);
+    return Array.from(document.querySelectorAll(linkSelector))
       .map((anchor) => anchor.href)
-      .filter((href) => /\/job\/\d+/.test(href));
+      .filter((href) => jobPath.test(href));
+  }, {
+    linkSelector: SEEK_SELECTORS.jobLinks,
+    jobPathSource: SEEK_TEXT.jobPath.source
   });
 
   const normalized = urls
@@ -350,7 +663,7 @@ async function collectJobUrls(page) {
       const url = new URL(href);
       return `${url.origin}${url.pathname}`;
     })
-    .filter((href) => new URL(href).hostname.includes("seek.com"));
+    .filter((href) => SEEK_TEXT.seekHost.test(new URL(href).hostname));
 
   return [...new Set(normalized)];
 }
@@ -358,7 +671,7 @@ async function collectJobUrls(page) {
 async function waitForHumanVerification(page) {
   const title = await page.title().catch(() => "");
   const bodyText = await page.locator("body").innerText({ timeout: 3000 }).catch(() => "");
-  const needsVerification = /just a moment|confirm you are human/i.test(`${title}\n${bodyText}`);
+  const needsVerification = SEEK_TEXT.humanVerification.test(`${title}\n${bodyText}`);
 
   if (!needsVerification) return;
 
@@ -376,35 +689,20 @@ async function waitForHumanVerification(page) {
 }
 
 async function extractJob(page) {
-  const title = await getFirstText(page, [
-    "h1",
-    '[data-automation="job-detail-title"]',
-    '[data-automation="job-title"]'
-  ]);
+  const title = await getFirstText(page, SEEK_SELECTORS.jobDetail.title);
+  const company = await getFirstText(page, SEEK_SELECTORS.jobDetail.company);
+  const description = await getFirstText(page, SEEK_SELECTORS.jobDetail.description);
+  const location = await getFirstText(page, SEEK_SELECTORS.jobDetail.location);
 
-  const company = await getFirstText(page, [
-    '[data-automation="advertiser-name"]',
-    '[data-automation="company-name"]',
-    'a[href*="/companies/"]'
-  ]);
-
-  const description = await getFirstText(page, [
-    '[data-automation="jobAdDetails"]',
-    '[data-automation="jobDescription"]',
-    "article",
-    "main"
-  ]);
-
-  return { title, company, description };
+  return { title, company, location, description };
 }
 
 async function openApplyPage(page, context) {
   const applyControl =
     (await firstVisibleLocator(page, [
-      page.getByRole("link", { name: /^apply/i }),
-      page.getByRole("button", { name: /^apply/i }),
-      page.locator('a[href*="apply"]'),
-      page.locator('button:has-text("Apply")')
+      page.getByRole("link", { name: SEEK_TEXT.applyControlName }),
+      page.getByRole("button", { name: SEEK_TEXT.applyControlName }),
+      ...SEEK_SELECTORS.applyControls.map((selector) => page.locator(selector))
     ])) || null;
 
   if (!applyControl) return null;
@@ -478,22 +776,20 @@ async function waitForSignInIfNeeded(page) {
 
 async function isSignInPage(page) {
   const url = page.url();
-  if (/login\.seek\.com|\/oauth\/login|#\/login/i.test(url)) return true;
+  if (SEEK_TEXT.signInUrl.test(url)) return true;
 
   const title = await page.title().catch(() => "");
   const bodyText = await page.locator("body").innerText({ timeout: 3000 }).catch(() => "");
-  return /sign in to seek|sign in.*apply|email.*password/i.test(`${title}\n${bodyText}`);
+  return SEEK_TEXT.signInPage.test(`${title}\n${bodyText}`);
 }
 
 async function isAlreadyAppliedPage(page) {
   const text = await page.locator("body").innerText({ timeout: 3000 }).catch(() => "");
-  return /\balready applied\b|\byou applied\b|\bapplication submitted\b|\byour application has been submitted\b/i.test(
-    text
-  );
+  return SEEK_TEXT.alreadyApplied.test(text);
 }
 
 async function attachResume(page, resumePath) {
-  const fileInputs = await page.locator('input[type="file"]').all();
+  const fileInputs = await page.locator(SEEK_SELECTORS.resumeUploadInput).all();
   for (const inputLocator of fileInputs) {
     try {
       await inputLocator.setInputFiles(resumePath);
@@ -504,13 +800,13 @@ async function attachResume(page, resumePath) {
   }
 
   const uploadButton = await firstVisibleLocator(page, [
-    page.getByRole("button", { name: /resume|upload|attach/i }),
-    page.getByRole("link", { name: /resume|upload|attach/i })
+    page.getByRole("button", { name: SEEK_TEXT.resumeUploadControlName }),
+    page.getByRole("link", { name: SEEK_TEXT.resumeUploadControlName })
   ]);
   if (uploadButton) {
     await uploadButton.click().catch(() => {});
     await page.waitForTimeout(1000);
-    const retryInputs = await page.locator('input[type="file"]').all();
+    const retryInputs = await page.locator(SEEK_SELECTORS.resumeUploadInput).all();
     for (const inputLocator of retryInputs) {
       try {
         await inputLocator.setInputFiles(resumePath);
@@ -525,24 +821,14 @@ async function attachResume(page, resumePath) {
 }
 
 async function findCoverLetterField(page) {
-  const selectors = [
-    'textarea[name*="cover" i]',
-    'textarea[id*="cover" i]',
-    'textarea[aria-label*="cover" i]',
-    'textarea[placeholder*="cover" i]',
-    'textarea[name*="message" i]',
-    'textarea[aria-label*="message" i]',
-    "textarea"
-  ];
-
-  for (const selector of selectors) {
+  for (const selector of SEEK_SELECTORS.coverLetterFields) {
     const locator = page.locator(selector).first();
     if ((await locator.count()) && (await locator.isVisible().catch(() => false))) {
       return locator;
     }
   }
 
-  const editable = page.locator('[contenteditable="true"]').first();
+  const editable = page.locator(SEEK_SELECTORS.editableField).first();
   if ((await editable.count()) && (await editable.isVisible().catch(() => false))) {
     return editable;
   }
